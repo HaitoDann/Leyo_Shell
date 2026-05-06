@@ -997,6 +997,7 @@ async function refreshFiles() {
     const nameEl = document.createElement('span');
     nameEl.className   = `fname ${cls}`;
     nameEl.textContent = f.Name;
+    item.appendChild(nameEl);
 
     item.draggable = true;
     item.addEventListener('dragstart', (e) => {
