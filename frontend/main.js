@@ -1093,26 +1093,89 @@ function addAnsiBlock(paneId, raw) {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────
+const FILE_TYPE_MAP = {
+  '.go':    'type-go',    '.mod':   'type-go',    '.sum':   'type-go',
+  '.py':    'type-py',    '.pyw':   'type-py',    '.pyi':   'type-py',
+  '.js':    'type-js',    '.mjs':   'type-js',    '.cjs':   'type-js',
+  '.ts':    'type-ts',
+  '.jsx':   'type-jsx',   '.tsx':   'type-jsx',
+  '.html':  'type-html',  '.htm':   'type-html',
+  '.css':   'type-css',
+  '.scss':  'type-scss',  '.sass':  'type-scss',  '.less':  'type-scss',
+  '.json':  'type-json',  '.jsonc': 'type-json',
+  '.yml':   'type-yaml',  '.yaml':  'type-yaml',
+  '.xml':   'type-xml',   '.svg':   'type-xml',   '.xaml':  'type-xml',
+  '.md':    'type-md',    '.mdx':   'type-md',    '.rst':   'type-md',    '.txt':   'type-md',
+  '.rs':    'type-rs',
+  '.java':  'type-java',
+  '.kt':    'type-kt',    '.kts':   'type-kt',
+  '.c':     'type-c',     '.h':     'type-c',
+  '.cpp':   'type-cpp',   '.cc':    'type-cpp',   '.cxx':   'type-cpp',   '.hpp':   'type-cpp',
+  '.cs':    'type-cs',
+  '.rb':    'type-rb',    '.erb':   'type-rb',
+  '.php':   'type-php',
+  '.swift': 'type-swift',
+  '.lua':   'type-lua',
+  '.sh':    'type-sh',    '.bash':  'type-sh',    '.zsh':   'type-sh',    '.fish':  'type-sh',
+  '.bat':   'type-sh',    '.cmd':   'type-sh',    '.ps1':   'type-sh',
+  '.sql':   'type-sql',
+  '.env':   'type-cfg',   '.ini':   'type-cfg',   '.cfg':   'type-cfg',   '.conf':  'type-cfg',
+  '.toml':  'type-cfg',   '.editorconfig': 'type-cfg',
+  '.lock':  'type-lock',
+  '.exe':   'type-exe',   '.msi':   'type-exe',   '.dll':   'type-exe',   '.so':    'type-exe',
+  '.bin':   'type-exe',
+  '.png':   'type-img',   '.jpg':   'type-img',   '.jpeg':  'type-img',   '.gif':   'type-img',
+  '.bmp':   'type-img',   '.ico':   'type-img',   '.webp':  'type-img',   '.tiff':  'type-img',
+  '.zip':   'type-arc',   '.rar':   'type-arc',   '.7z':    'type-arc',   '.tar':   'type-arc',
+  '.gz':    'type-arc',   '.bz2':   'type-arc',   '.xz':    'type-arc',
+  '.ttf':   'type-font',  '.otf':   'type-font',  '.woff':  'type-font',  '.woff2': 'type-font',
+  '.mp4':   'type-media', '.mp3':   'type-media', '.avi':   'type-media', '.mov':   'type-media',
+  '.mkv':   'type-media', '.wav':   'type-media', '.flac':  'type-media', '.ogg':   'type-media',
+};
+
+const FILE_NAME_MAP = {
+  'dockerfile':          'type-docker',
+  'docker-compose.yml':  'type-docker',
+  'docker-compose.yaml': 'type-docker',
+  '.gitignore':          'type-git',
+  '.gitattributes':      'type-git',
+  '.gitmodules':         'type-git',
+  'package.json':        'type-json',
+  'package-lock.json':   'type-lock',
+  'yarn.lock':           'type-lock',
+  'pnpm-lock.yaml':      'type-lock',
+  'go.sum':              'type-lock',
+  'cargo.lock':          'type-lock',
+  'makefile':            'type-sh',
+  'rakefile':            'type-sh',
+  '.env':                'type-cfg',
+  '.env.local':          'type-cfg',
+  '.env.production':     'type-cfg',
+  'tsconfig.json':       'type-ts',
+  'jsconfig.json':       'type-js',
+};
+
+const DIR_NAME_MAP = {
+  '.git':         'type-git',
+  'node_modules': 'type-lock',
+  '.github':      'type-git',
+  'dist':         'type-exe',
+  'build':        'type-exe',
+  'target':       'type-exe',
+  '$recycle.bin': 'type-sys',
+  'windows':      'type-sys',
+  'system32':     'type-sys',
+};
+
 function getFileIcon(f) {
   if (f.IsDir) {
     const lower = f.Name.toLowerCase();
-    if (lower === '.git')                        return { cls: 'type-git',   shape: 'folder' };
-    if (['windows','system32'].includes(lower))  return { cls: 'type-sys',   shape: 'folder' };
-    if (lower === 'node_modules')                return { cls: 'type-other', shape: 'folder' };
-    if (lower === '$recycle.bin')                return { cls: 'type-sys',   shape: 'folder' };
-    return { cls: 'type-dir', shape: 'folder' };
+    return { cls: DIR_NAME_MAP[lower] || 'type-dir', shape: 'folder' };
   }
-  switch ((f.Ext || '').toLowerCase()) {
-    case '.go':                return { cls: 'type-go',    shape: 'file' };
-    case '.exe': case '.msi':  return { cls: 'type-exe',   shape: 'file' };
-    case '.md':                return { cls: 'type-md',    shape: 'file' };
-    case '.yml': case '.yaml': return { cls: 'type-yml',   shape: 'file' };
-    case '.json':              return { cls: 'type-json',  shape: 'file' };
-    case '.js':  case '.ts':   return { cls: 'type-json',  shape: 'file' };
-    case '.css':               return { cls: 'type-yml',   shape: 'file' };
-    case '.html':              return { cls: 'type-go',    shape: 'file' };
-    default:                   return { cls: 'type-other', shape: 'file' };
-  }
+  const lower = f.Name.toLowerCase();
+  if (FILE_NAME_MAP[lower]) return { cls: FILE_NAME_MAP[lower], shape: 'file' };
+  const ext = (f.Ext || '').toLowerCase();
+  return { cls: FILE_TYPE_MAP[ext] || 'type-other', shape: 'file' };
 }
 
 function makeFileIcon(cls, shape, opacity) {

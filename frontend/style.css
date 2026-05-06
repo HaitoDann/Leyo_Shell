@@ -483,15 +483,85 @@ body {
   flex: 1;
 }
 
-.type-dir   { color: var(--folder); }
-.type-go    { color: var(--code-color); }
-.type-exe   { color: var(--exec-color); }
-.type-md    { color: var(--md-color); }
-.type-yml   { color: var(--c4); }
-.type-json  { color: var(--c4); }
-.type-git   { color: var(--text-muted); }
-.type-sys   { color: var(--text-muted); }
-.type-other { color: var(--file-color); }
+/* ── File type palette ───────────────────────────────────────── */
+:root {
+  --ft-dir:    #7ec8e3;  /* folders — steel cyan */
+  --ft-git:    #f97316;  /* git — orange */
+  --ft-sys:    #6b7280;  /* system — grey */
+  --ft-go:     #00add8;  /* Go — cyan blue */
+  --ft-py:     #85c1e9;  /* Python — blue grey */
+  --ft-js:     #f0c878;  /* JavaScript — amber */
+  --ft-ts:     #7ec8e3;  /* TypeScript — steel cyan */
+  --ft-jsx:    #61dafb;  /* JSX/TSX — React cyan */
+  --ft-html:   #e96c3f;  /* HTML — orange red */
+  --ft-css:    #639cdc;  /* CSS — cornflower blue */
+  --ft-scss:   #c76494;  /* SCSS — pink */
+  --ft-json:   #f7c948;  /* JSON — yellow */
+  --ft-yaml:   #a8d8a8;  /* YAML — mint green */
+  --ft-xml:    #f0a060;  /* XML — peach */
+  --ft-md:     #d0d0d0;  /* Markdown — light grey */
+  --ft-rs:     #f97316;  /* Rust — burnt orange */
+  --ft-java:   #f89820;  /* Java — orange */
+  --ft-kt:     #b580e2;  /* Kotlin — purple */
+  --ft-c:      #a8c4e0;  /* C — pale blue */
+  --ft-cpp:    #6699cc;  /* C++ — blue */
+  --ft-cs:     #9b84ee;  /* C# — violet */
+  --ft-rb:     #e0515a;  /* Ruby — red */
+  --ft-php:    #8892bf;  /* PHP — indigo */
+  --ft-swift:  #f05138;  /* Swift — orange red */
+  --ft-lua:    #7b92f5;  /* Lua — periwinkle */
+  --ft-sh:     #a8e6a8;  /* Shell/Bash — green */
+  --ft-sql:    #f0d060;  /* SQL — golden yellow */
+  --ft-docker: #2496ed;  /* Docker — docker blue */
+  --ft-cfg:    #98d4c4;  /* Config/env — teal */
+  --ft-lock:   #c0c0c0;  /* Lock files — silver */
+  --ft-exe:    #ff6b6b;  /* Executables — coral */
+  --ft-img:    #d4a0f0;  /* Images — lavender */
+  --ft-arc:    #f0b060;  /* Archives — warm yellow */
+  --ft-font:   #b0e0e0;  /* Fonts — pale cyan */
+  --ft-media:  #ff9ecd;  /* Media — pink */
+  --ft-other:  #8a8a8a;  /* Fallback — dim grey */
+}
+
+.type-dir    { color: var(--ft-dir); }
+.type-git    { color: var(--ft-git); }
+.type-sys    { color: var(--ft-sys); }
+.type-go     { color: var(--ft-go); }
+.type-py     { color: var(--ft-py); }
+.type-js     { color: var(--ft-js); }
+.type-ts     { color: var(--ft-ts); }
+.type-jsx    { color: var(--ft-jsx); }
+.type-html   { color: var(--ft-html); }
+.type-css    { color: var(--ft-css); }
+.type-scss   { color: var(--ft-scss); }
+.type-json   { color: var(--ft-json); }
+.type-yaml   { color: var(--ft-yaml); }
+.type-xml    { color: var(--ft-xml); }
+.type-md     { color: var(--ft-md); }
+.type-rs     { color: var(--ft-rs); }
+.type-java   { color: var(--ft-java); }
+.type-kt     { color: var(--ft-kt); }
+.type-c      { color: var(--ft-c); }
+.type-cpp    { color: var(--ft-cpp); }
+.type-cs     { color: var(--ft-cs); }
+.type-rb     { color: var(--ft-rb); }
+.type-php    { color: var(--ft-php); }
+.type-swift  { color: var(--ft-swift); }
+.type-lua    { color: var(--ft-lua); }
+.type-sh     { color: var(--ft-sh); }
+.type-sql    { color: var(--ft-sql); }
+.type-docker { color: var(--ft-docker); }
+.type-cfg    { color: var(--ft-cfg); }
+.type-lock   { color: var(--ft-lock); }
+.type-exe    { color: var(--ft-exe); }
+.type-img    { color: var(--ft-img); }
+.type-arc    { color: var(--ft-arc); }
+.type-font   { color: var(--ft-font); }
+.type-media  { color: var(--ft-media); }
+.type-other  { color: var(--ft-other); }
+/* legacy aliases */
+.type-yml    { color: var(--ft-yaml); }
+.type-exe    { color: var(--ft-exe); }
 
 /* CSS square icons for sidebar files */
 .file-sq {
