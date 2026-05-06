@@ -438,6 +438,28 @@ body {
 
 .sidebar-path { display: none; }
 
+.sidebar-search-wrap {
+  padding: 0 10px 8px;
+}
+
+.sidebar-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--mono-font, 'JetBrains Mono'), monospace;
+  padding: 4px 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sidebar-search::placeholder { color: var(--text-muted); }
+
+.sidebar-search:focus { border-color: var(--accent); }
+
 .file-list {
   flex: 1;
   overflow-y: auto;

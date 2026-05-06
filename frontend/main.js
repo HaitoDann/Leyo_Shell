@@ -174,6 +174,24 @@ function applyTheme(t) {
   if (el) el.textContent = t.name;
   renderThemeCards();
   window.LeyoEditor?.reloadTheme();
+  updateXtermTheme(t);
+}
+
+function updateXtermTheme(t) {
+  const xtermTheme = {
+    background:   t.bg,
+    foreground:   t.text,
+    cursor:       t.accent,
+    cursorAccent: t.bg,
+    black: '#21222C', red: t.error,    green: t.success, yellow: t.c4,
+    blue:  t.c2,      magenta: t.c3,   cyan: t.c1,       white: t.text,
+    brightBlack: t.textMuted, brightRed: t.error, brightGreen: t.success,
+    brightYellow: t.c4, brightBlue: t.c2, brightMagenta: t.c3,
+    brightCyan: t.c1,   brightWhite: '#ffffff',
+  };
+  for (const inst of Object.values(ptyInstances)) {
+    if (inst?.term) inst.term.options.theme = xtermTheme;
+  }
 }
 
 function hexAlpha(hex, a) {
@@ -550,23 +568,24 @@ async function openPTY(paneId, command) {
   const { Terminal, FitAddon, WebLinksAddon } = window.LeyoXterm;
 
   // Crée le terminal xterm.js
+  const activeThemeKey = localStorage.getItem('leyo-theme') || 'velvet';
+  const at = LEYO_THEMES[activeThemeKey] || LEYO_THEMES.velvet;
+  const s  = loadSettings();
   const term = new Terminal({
-    fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
-    fontSize: 13,
+    fontFamily: s.fontFamily + ", 'Cascadia Code', Consolas, monospace",
+    fontSize:   s.fontSize,
     theme: {
-      background:   getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0d0d14',
-      foreground:   getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#e8e8f0',
-      cursor:       getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#cba8ff',
-      cursorAccent: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0d0d14',
-      black: '#21222C', red: '#f0a8b8', green: '#a8e0c0', yellow: '#f0c878',
-      blue: '#a6b3ff', magenta: '#f0a8d8', cyan: '#9ad8ff', white: '#e8e8f0',
-      brightBlack: '#5a5a6a', brightRed: '#f0a8b8', brightGreen: '#a8e0c0',
-      brightYellow: '#f0c878', brightBlue: '#cba8ff', brightMagenta: '#f0a8d8',
-      brightCyan: '#9ad8ff', brightWhite: '#ffffff',
+      background:   at.bg,     foreground:   at.text,
+      cursor:       at.accent, cursorAccent: at.bg,
+      black: '#21222C', red: at.error,   green: at.success, yellow: at.c4,
+      blue:  at.c2,     magenta: at.c3,  cyan:  at.c1,      white: at.text,
+      brightBlack: at.textMuted, brightRed: at.error, brightGreen: at.success,
+      brightYellow: at.c4, brightBlue: at.c2, brightMagenta: at.c3,
+      brightCyan: at.c1,   brightWhite: '#ffffff',
     },
     allowTransparency: true,
     cursorBlink: true,
-    scrollback: 5000,
+    scrollback: s.scrollback,
   });
 
   const fitAddon = new FitAddon();
@@ -1053,6 +1072,22 @@ function initCtxMenu() {
 }
 
 // ── Init ──────────────────────────────────────────────────────
+function initSidebarSearch() {
+  const input = document.getElementById('sidebarSearch');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const q = input.value.toLowerCase().trim();
+    document.querySelectorAll('#fileList .file-item').forEach(item => {
+      if (item.classList.contains('file-item-parent')) return;
+      const name = (item.dataset.name || '').toLowerCase();
+      item.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { input.value = ''; input.dispatchEvent(new Event('input')); }
+  });
+}
+
 async function init() {
   history = await window.go.main.App.GetHistory() || [];
   paneState[1].historyIndex = history.length;
@@ -1061,6 +1096,7 @@ async function init() {
   initSettings();
   initCtxMenu();
   initSidebarResize();
+  initSidebarSearch();
   createTab();
   document.getElementById('commandInput1').focus();
 }
@@ -1195,6 +1231,8 @@ async function refreshFiles() {
   updateStatusPath(path);
 
   list.innerHTML = '';
+  const searchEl = document.getElementById('sidebarSearch');
+  if (searchEl) searchEl.value = '';
 
   // Entrée ".." pour remonter (sauf à la racine d'un lecteur, ex: C:\)
   const isRoot = /^[A-Za-z]:\\?$/.test(path.trim());
@@ -1331,6 +1369,45 @@ async function runCommand(paneId, input) {
 
   if (input.trim() === 'theme') {
     document.getElementById('themeModal').style.display = 'flex';
+    updateStatus(paneId, true);
+    return;
+  }
+
+  if (input.trim() === 'help') {
+    const lines = [
+      '  ┌─ Leyo Shell — aide ──────────────────────────────────────',
+      '  │',
+      '  │  Commandes intégrées',
+      '  │   help            Affiche cette aide',
+      '  │   clear           Efface la sortie',
+      '  │   history         Liste les commandes récentes',
+      '  │   theme           Ouvre le sélecteur de thèmes',
+      '  │   alias           Liste les alias définis',
+      '  │   alias k="v"     Crée un alias',
+      '  │   unalias k       Supprime un alias',
+      '  │   exit            Quitte l\'application',
+      '  │',
+      '  │  Raccourcis clavier',
+      '  │   Ctrl+T          Nouvel onglet',
+      '  │   Ctrl+W          Fermer l\'onglet courant',
+      '  │   Ctrl+Tab        Onglet suivant',
+      '  │   Ctrl+D          Activer / désactiver le split',
+      '  │   Ctrl+K          Sélecteur de thèmes',
+      '  │   Ctrl+F          Rechercher dans l\'output',
+      '  │   Ctrl+S          Sauvegarder (éditeur)',
+      '  │   Ctrl+Q          Fermer l\'éditeur',
+      '  │   Ctrl+L          Effacer l\'output (= clear)',
+      '  │   ↑ / ↓          Naviguer dans l\'historique',
+      '  │   Tab             Compléter le chemin',
+      '  │   →               Accepter la suggestion fantôme',
+      '  │',
+      '  │  Sidebar',
+      '  │   Clic simple     Naviguer / ouvrir le fichier',
+      '  │   Clic droit      Menu contextuel (renommer, copier…)',
+      '  │   Glisser         Coller le nom dans le prompt',
+      '  └──────────────────────────────────────────────────────────',
+    ];
+    lines.forEach(l => addLine(paneId, l, 'out-muted'));
     updateStatus(paneId, true);
     return;
   }
