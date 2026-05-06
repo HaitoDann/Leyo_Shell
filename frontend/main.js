@@ -97,49 +97,116 @@ const paneState = {
 };
 
 // ── Thèmes ────────────────────────────────────────────────────
-let currentThemeName = 'PRISM';
+const LEYO_THEMES = {
+  velvet: {
+    key: 'velvet', name: 'Velvet Night',
+    bg: '#0d0d14', bgDeep: '#08080d',
+    panel: 'rgba(255,255,255,0.025)', panelStrong: 'rgba(255,255,255,0.04)',
+    border: 'rgba(255,255,255,0.06)', borderStrong: 'rgba(255,255,255,0.10)',
+    text: '#e8e8f0', textDim: '#8a8a9a', textMuted: '#5a5a6a',
+    c1: '#9ad8ff', c2: '#a6b3ff', c3: '#cba8ff', c4: '#f0a8d8',
+    accent: '#cba8ff', success: '#a8e0c0', error: '#f0a8b8',
+    folder: '#9ad8ff', file: '#c8c8d8', code: '#a6b3ff', exec: '#f0a8d8', md: '#a8e0c0',
+  },
+  dusk: {
+    key: 'dusk', name: 'Dusk',
+    bg: '#16101a', bgDeep: '#0c0810',
+    panel: 'rgba(255,255,255,0.028)', panelStrong: 'rgba(255,255,255,0.045)',
+    border: 'rgba(255,200,180,0.07)', borderStrong: 'rgba(255,200,180,0.12)',
+    text: '#f0e6e0', textDim: '#a89890', textMuted: '#6a5a60',
+    c1: '#ffc9a8', c2: '#ffaab0', c3: '#d4a8e0', c4: '#a8aae0',
+    accent: '#ffaab0', success: '#c8e0a8', error: '#ffaab0',
+    folder: '#ffc9a8', file: '#e0d4cc', code: '#d4a8e0', exec: '#ffaab0', md: '#c8e0a8',
+  },
+  amber: {
+    key: 'amber', name: 'Amber',
+    bg: '#161108', bgDeep: '#0c0905',
+    panel: 'rgba(255,220,170,0.025)', panelStrong: 'rgba(255,220,170,0.04)',
+    border: 'rgba(255,200,140,0.07)', borderStrong: 'rgba(255,200,140,0.12)',
+    text: '#f0e4cc', textDim: '#a89878', textMuted: '#6a5e44',
+    c1: '#f0c878', c2: '#e8a868', c3: '#d49858', c4: '#c0e0b8',
+    accent: '#f0c878', success: '#c0e0b8', error: '#e8a890',
+    folder: '#f0c878', file: '#e0d0a8', code: '#e8a868', exec: '#d49858', md: '#c0e0b8',
+  },
+};
 
-function applyTheme(theme) {
-  const root = document.documentElement.style;
-  root.setProperty('--cyan',    theme.cyan);
-  root.setProperty('--blue',    theme.blue);
-  root.setProperty('--violet',  theme.violet);
-  root.setProperty('--magenta', theme.magenta);
-  root.setProperty('--bg',      theme.bg);
-  root.setProperty('--bg2',     theme.bg2);
-  root.setProperty('--text',    theme.text);
-  currentThemeName = theme.name;
+let currentThemeName = 'Velvet Night';
+
+function applyTheme(t) {
+  const r = document.documentElement.style;
+  r.setProperty('--bg',            t.bg);
+  r.setProperty('--bg-deep',       t.bgDeep);
+  r.setProperty('--panel',         t.panel);
+  r.setProperty('--panel-strong',  t.panelStrong);
+  r.setProperty('--border',        t.border);
+  r.setProperty('--border-strong', t.borderStrong);
+  r.setProperty('--text',          t.text);
+  r.setProperty('--text-dim',      t.textDim);
+  r.setProperty('--text-muted',    t.textMuted);
+  r.setProperty('--c1',            t.c1);
+  r.setProperty('--c2',            t.c2);
+  r.setProperty('--c3',            t.c3);
+  r.setProperty('--c4',            t.c4);
+  r.setProperty('--accent',        t.accent);
+  r.setProperty('--success',       t.success);
+  r.setProperty('--error',         t.error);
+  r.setProperty('--folder',        t.folder);
+  r.setProperty('--file-color',    t.file);
+  r.setProperty('--code-color',    t.code);
+  r.setProperty('--exec-color',    t.exec);
+  r.setProperty('--md-color',      t.md);
+  // compat aliases
+  r.setProperty('--cyan',    t.c1);
+  r.setProperty('--blue',    t.c2);
+  r.setProperty('--violet',  t.accent);
+  r.setProperty('--magenta', t.c4);
+  r.setProperty('--bg2',     t.bgDeep);
+  r.setProperty('--bg3',     t.bg);
+  r.setProperty('--text-mute', t.textMuted);
+  r.setProperty('--seg-user', hexAlpha(t.c1, 0.08));
+  r.setProperty('--seg-path', hexAlpha(t.c2, 0.07));
+  r.setProperty('--seg-git',  hexAlpha(t.c3, 0.08));
+  r.setProperty('--seg-ok',   hexAlpha(t.success, 0.07));
+  r.setProperty('--seg-fail', hexAlpha(t.error, 0.12));
+  currentThemeName = t.name;
+  localStorage.setItem('leyo-theme', t.key);
+  const el = document.getElementById('statusTheme');
+  if (el) el.textContent = t.name;
   renderThemeCards();
   window.LeyoEditor?.reloadTheme();
 }
 
-async function loadThemes() {
-  const themes  = await window.go.main.App.GetThemes();
-  const current = await window.go.main.App.GetCurrentTheme();
-  applyTheme(current);
-  renderThemeGrid(themes);
+function hexAlpha(hex, a) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
-function renderThemeGrid(themes) {
+function loadThemes() {
+  const key = localStorage.getItem('leyo-theme') || 'velvet';
+  applyTheme(LEYO_THEMES[key] || LEYO_THEMES.velvet);
+  renderThemeGrid();
+}
+
+function renderThemeGrid() {
   const grid = document.getElementById('themeGrid');
+  if (!grid) return;
   grid.innerHTML = '';
-  themes.forEach(t => {
+  Object.values(LEYO_THEMES).forEach(t => {
     const card = document.createElement('div');
     card.className = 'theme-card' + (t.name === currentThemeName ? ' active' : '');
     card.dataset.name = t.name;
     card.innerHTML = `
       <div class="theme-card-preview">
-        <div class="theme-swatch" style="background:${t.cyan}"></div>
-        <div class="theme-swatch" style="background:${t.blue}"></div>
-        <div class="theme-swatch" style="background:${t.violet}"></div>
-        <div class="theme-swatch" style="background:${t.magenta}"></div>
+        <div class="theme-swatch" style="background:${t.c1}"></div>
+        <div class="theme-swatch" style="background:${t.c3}"></div>
+        <div class="theme-swatch" style="background:${t.c2}"></div>
       </div>
       <div class="theme-card-name">${t.name}</div>
     `;
-    card.addEventListener('click', async () => {
+    card.addEventListener('click', () => {
       applyTheme(t);
-      await window.go.main.App.SetTheme(t.name);
-      renderThemeCards();
     });
     grid.appendChild(card);
   });
@@ -149,6 +216,21 @@ function renderThemeCards() {
   document.querySelectorAll('.theme-card').forEach(card => {
     card.classList.toggle('active', card.dataset.name === currentThemeName);
   });
+}
+
+// ── Status bar ────────────────────────────────────────────────
+function updateStatusPath(path) {
+  const sp = document.getElementById('statusPath');
+  if (sp) sp.textContent = path;
+  const tp = document.getElementById('titlebarPath');
+  if (tp) tp.textContent = path;
+}
+
+function updateStatusCount(n) {
+  const el = document.getElementById('statusCount');
+  if (el) el.textContent = `${n} items`;
+  const sc = document.getElementById('sidebarCount');
+  if (sc) sc.textContent = n;
 }
 
 document.getElementById('themeBtn').addEventListener('click', () => {
@@ -230,7 +312,8 @@ function renderTabs() {
     const modifiedDot = isModified ? '<span class="tab-modified">●</span>' : '';
 
     div.innerHTML = `
-      <span onclick="switchTab(${t.id})">${label}${modifiedDot}</span>
+      <span class="tab-indicator"></span>
+      <span class="tab-label" onclick="switchTab(${t.id})">${label}${modifiedDot}</span>
       ${tabs.length > 1 ? `<span class="tab-close" onclick="closeTab(event,${t.id})">✕</span>` : ''}
     `;
     container.appendChild(div);
@@ -259,6 +342,7 @@ async function switchTab(id) {
     document.getElementById('output1').innerHTML          = activeTab.output;
     document.getElementById('segPath1').textContent       = activeTab.path;
     document.getElementById('sidebarPath').textContent    = activeTab.path;
+    updateStatusPath(activeTab.path);
     document.getElementById('commandInput1').value        = '';
     await updateGhost(1, '');
     await window.go.main.App.RunCommand(`cd "${activeTab.path}"`);
@@ -467,18 +551,18 @@ async function openPTY(paneId, command) {
 
   // Crée le terminal xterm.js
   const term = new Terminal({
-    fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+    fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     fontSize: 13,
     theme: {
-      background:   '#08080E',
-      foreground:   '#D8D8E8',
-      cursor:       '#5BC8E8',
-      cursorAccent: '#08080E',
-      black:        '#21222C', red:     '#FF5555', green:  '#50FA7B', yellow: '#F1FA8C',
-      blue:         '#BD93F9', magenta: '#FF79C6', cyan:   '#8BE9FD', white:  '#F8F8F2',
-      brightBlack:  '#6272A4', brightRed: '#FF6E6E', brightGreen: '#69FF94',
-      brightYellow: '#FFFFA5', brightBlue: '#D6ACFF', brightMagenta: '#FF92DF',
-      brightCyan:   '#A4FFFF', brightWhite: '#FFFFFF',
+      background:   getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0d0d14',
+      foreground:   getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#e8e8f0',
+      cursor:       getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#cba8ff',
+      cursorAccent: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0d0d14',
+      black: '#21222C', red: '#f0a8b8', green: '#a8e0c0', yellow: '#f0c878',
+      blue: '#a6b3ff', magenta: '#f0a8d8', cyan: '#9ad8ff', white: '#e8e8f0',
+      brightBlack: '#5a5a6a', brightRed: '#f0a8b8', brightGreen: '#a8e0c0',
+      brightYellow: '#f0c878', brightBlue: '#cba8ff', brightMagenta: '#f0a8d8',
+      brightCyan: '#9ad8ff', brightWhite: '#ffffff',
     },
     allowTransparency: true,
     cursorBlink: true,
@@ -810,7 +894,7 @@ async function init() {
   history = await window.go.main.App.GetHistory() || [];
   paneState[1].historyIndex = history.length;
   paneState[2].historyIndex = history.length;
-  await loadThemes();
+  loadThemes();
   initSidebarResize();
   createTab();
   document.getElementById('commandInput1').focus();
@@ -873,6 +957,7 @@ async function refreshFiles() {
 
   document.getElementById('sidebarPath').textContent =
     path.length > 28 ? '...' + path.slice(-25) : path;
+  updateStatusPath(path);
 
   list.innerHTML = '';
 
@@ -934,6 +1019,8 @@ async function refreshFiles() {
     item.appendChild(nameEl);
     list.appendChild(item);
   });
+
+  updateStatusCount(files.length);
 
   if (currentPreviewFile) {
     const active = list.querySelector(`[data-name="${currentPreviewFile}"]`);

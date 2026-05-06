@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Leyo Shell</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
   <script src="xterm-bundle.js" defer onerror="console.warn('xterm-bundle.js non trouvé')"></script>
   <script src="editor-bundle.js" defer onerror="console.warn('editor-bundle.js non trouvé')"></script>
@@ -13,17 +14,27 @@
 <body>
   <div class="app">
 
-    <!-- ── HEADER ── -->
-    <div class="header">
-      <img src="assets/logo.png" height="28" width="28" style="object-fit:contain;opacity:0.9;"/>
-      <span class="logo">LEYO</span>
-      <div class="tabs" id="tabs"></div>
-      <button class="tab-add" id="tabAdd" title="Nouvel onglet (Ctrl+T)">+</button>
-      <div class="header-right">
+    <!-- ── TITLEBAR (36px) ── -->
+    <div class="titlebar" data-wails-drag>
+      <div class="titlebar-left">
+        <img src="assets/logo.png" height="18" width="18" style="object-fit:contain;opacity:0.9;flex-shrink:0;"/>
+        <span class="titlebar-name">Leyo Shell</span>
+        <span class="titlebar-version">v1.10</span>
+      </div>
+      <div class="titlebar-center">
+        <span class="titlebar-path" id="titlebarPath">C:\</span>
+      </div>
+      <div class="titlebar-right">
         <button class="split-btn" id="splitBtn" title="Split view (Ctrl+D)">⬛⬛</button>
         <button class="theme-btn" id="themeBtn" title="Thèmes (Ctrl+K)">◈</button>
         <span class="header-time" id="headerTime"></span>
       </div>
+    </div>
+
+    <!-- ── TABS BAR (36px) ── -->
+    <div class="tabs-bar">
+      <div class="tabs" id="tabs"></div>
+      <button class="tab-add" id="tabAdd" title="Nouvel onglet (Ctrl+T)">+</button>
     </div>
 
     <!-- ── MODAL THÈMES ── -->
@@ -43,9 +54,11 @@
       <!-- ── SIDEBAR ── -->
       <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-          <span class="sidebar-title">Explorer</span>
+          <span class="sidebar-title">Files</span>
+          <span class="sidebar-count" id="sidebarCount">0</span>
         </div>
-        <div class="sidebar-path" id="sidebarPath"></div>
+        <!-- hidden path element kept for JS compatibility -->
+        <div class="sidebar-path" id="sidebarPath" style="display:none;"></div>
         <div class="file-list" id="fileList"></div>
 
         <!-- Prévisualisation fichier -->
@@ -60,6 +73,21 @@
           </div>
           <div class="preview-body" id="previewBody"></div>
         </div>
+
+        <!-- Decorative polygon -->
+        <svg class="sidebar-poly" width="110" height="110" viewBox="0 0 110 110">
+          <defs>
+            <linearGradient id="sb-poly-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="var(--c1)"/>
+              <stop offset="100%" stop-color="var(--c3)"/>
+            </linearGradient>
+          </defs>
+          <g stroke="url(#sb-poly-grad)" stroke-width="0.5" fill="none">
+            <polygon points="30,20 78,10 92,52 60,72 22,58"/>
+            <polygon points="30,20 60,72 22,58"/>
+          </g>
+          <polygon points="30,20 60,72 22,58" fill="url(#sb-poly-grad)" fill-opacity="0.10"/>
+        </svg>
       </div>
 
       <!-- Handle resize sidebar -->
@@ -236,6 +264,24 @@
       </div>
 
     </div>
+
+    <!-- ── STATUS BAR (24px) ── -->
+    <div class="status-bar">
+      <div class="status-bar-left">
+        <span class="status-ready">
+          <span class="status-dot"></span>
+          ready
+        </span>
+        <span class="status-path" id="statusPath">C:\</span>
+      </div>
+      <div class="status-bar-right">
+        <span>UTF-8</span>
+        <span id="statusTheme">Velvet Night</span>
+        <span id="statusCount">0 items</span>
+        <span style="color:var(--text-dim)">VinX · v1.10</span>
+      </div>
+    </div>
+
   </div>
   <script src="main.js"></script>
 </body>
