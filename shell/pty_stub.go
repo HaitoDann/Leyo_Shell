@@ -16,10 +16,3 @@ func (m *ptyManagerStub) Resize(sessionId string, cols, rows int) {}
 func (m *ptyManagerStub) Stop(sessionId string)                   {}
 
 var Manager ptyManager = &ptyManagerStub{}
-
-type ptyManager interface {
-	Start(string, int, int, func([]byte), func()) error
-	Write(string, string) error
-	Resize(string, int, int)
-	Stop(string)
-}
