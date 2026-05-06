@@ -931,23 +931,30 @@ function addAnsiBlock(paneId, raw) {
 function getFileIcon(f) {
   if (f.IsDir) {
     const lower = f.Name.toLowerCase();
-    if (lower === '.git')                        return { icon: '⎇', cls: 'type-git'   };
-    if (['windows','system32'].includes(lower))  return { icon: '⊞', cls: 'type-sys'   };
-    if (lower === 'node_modules')                return { icon: '⬡', cls: 'type-other' };
-    if (lower === '$recycle.bin')                return { icon: '◌', cls: 'type-sys'   };
-    return { icon: '▸', cls: 'type-dir' };
+    if (lower === '.git')                        return { cls: 'type-git',   shape: 'folder' };
+    if (['windows','system32'].includes(lower))  return { cls: 'type-sys',   shape: 'folder' };
+    if (lower === 'node_modules')                return { cls: 'type-other', shape: 'folder' };
+    if (lower === '$recycle.bin')                return { cls: 'type-sys',   shape: 'folder' };
+    return { cls: 'type-dir', shape: 'folder' };
   }
   switch ((f.Ext || '').toLowerCase()) {
-    case '.go':                return { icon: '◆', cls: 'type-go'    };
-    case '.exe': case '.msi':  return { icon: '⚙', cls: 'type-exe'  };
-    case '.md':                return { icon: '≡', cls: 'type-md'   };
-    case '.yml': case '.yaml': return { icon: '◈', cls: 'type-yml'  };
-    case '.json':              return { icon: '◈', cls: 'type-json' };
-    case '.js':  case '.ts':   return { icon: '◆', cls: 'type-json' };
-    case '.css':               return { icon: '◈', cls: 'type-yml'  };
-    case '.html':              return { icon: '◈', cls: 'type-go'   };
-    default:                   return { icon: '·', cls: 'type-other' };
+    case '.go':                return { cls: 'type-go',    shape: 'file' };
+    case '.exe': case '.msi':  return { cls: 'type-exe',   shape: 'file' };
+    case '.md':                return { cls: 'type-md',    shape: 'file' };
+    case '.yml': case '.yaml': return { cls: 'type-yml',   shape: 'file' };
+    case '.json':              return { cls: 'type-json',  shape: 'file' };
+    case '.js':  case '.ts':   return { cls: 'type-json',  shape: 'file' };
+    case '.css':               return { cls: 'type-yml',   shape: 'file' };
+    case '.html':              return { cls: 'type-go',    shape: 'file' };
+    default:                   return { cls: 'type-other', shape: 'file' };
   }
+}
+
+function makeFileIcon(cls, shape, opacity) {
+  const el = document.createElement('span');
+  el.className = `file-sq ${cls} ${shape === 'folder' ? 'sq-folder' : 'sq-file'}`;
+  if (opacity !== undefined) el.style.opacity = opacity;
+  return el;
 }
 
 async function refreshFiles() {
@@ -968,13 +975,10 @@ async function refreshFiles() {
     parentItem.className    = 'file-item file-item-parent';
     parentItem.dataset.name = '..';
     parentItem.title        = 'Remonter au dossier parent';
-    const upIcon = document.createElement('span');
-    upIcon.className   = 'icon type-dir';
-    upIcon.textContent = '↑';
+    parentItem.appendChild(makeFileIcon('type-dir', 'folder', 0.4));
     const upLabel = document.createElement('span');
     upLabel.className   = 'fname type-dir';
     upLabel.textContent = '..';
-    parentItem.appendChild(upIcon);
     parentItem.appendChild(upLabel);
     parentItem.addEventListener('click', async () => {
       await runCommand(activePaneId, 'cd ..');
@@ -983,17 +987,15 @@ async function refreshFiles() {
   }
 
   files.forEach(f => {
-    const item   = document.createElement('div');
+    const item = document.createElement('div');
     item.className    = 'file-item';
     item.dataset.name = f.Name;
 
-    const { icon, cls } = getFileIcon(f);
-    const iconEl = document.createElement('span');
-    iconEl.className   = `icon ${cls}`;
-    iconEl.textContent = icon;
+    const { cls, shape } = getFileIcon(f);
+    item.appendChild(makeFileIcon(cls, shape));
 
     const nameEl = document.createElement('span');
-    nameEl.className   = `fname ${f.IsDir ? 'type-dir' : ''}`;
+    nameEl.className   = `fname ${cls}`;
     nameEl.textContent = f.Name;
 
     item.draggable = true;
@@ -1006,7 +1008,6 @@ async function refreshFiles() {
 
     if (f.IsDir) {
       item.title = 'Double-clic pour naviguer · Glisse vers le prompt';
-      // Double-clic exécute cd directement
       item.ondblclick = async () => {
         await runCommand(activePaneId, `cd ${f.Name}`);
       };
@@ -1015,8 +1016,6 @@ async function refreshFiles() {
       item.addEventListener('click', () => previewFile(f.Name, f.Ext || ''));
     }
 
-    item.appendChild(iconEl);
-    item.appendChild(nameEl);
     list.appendChild(item);
   });
 

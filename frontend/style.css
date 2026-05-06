@@ -473,13 +473,6 @@ body {
   height: 28px;
 }
 
-.file-item .icon {
-  font-size: 11px;
-  flex-shrink: 0;
-  width: 12px;
-  text-align: center;
-}
-
 .file-item .fname {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -495,6 +488,26 @@ body {
 .type-git   { color: var(--text-muted); }
 .type-sys   { color: var(--text-muted); }
 .type-other { color: var(--file-color); }
+
+/* CSS square icons for sidebar files */
+.file-sq {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 1px;
+  display: inline-block;
+}
+
+.sq-folder {
+  background: transparent;
+  border: 1px solid currentColor;
+  clip-path: polygon(0 30%, 38% 30%, 48% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.sq-file {
+  background: currentColor;
+  border: none;
+}
 
 .sidebar-poly {
   position: absolute;
