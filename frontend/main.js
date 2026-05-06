@@ -889,12 +889,177 @@ function measureTextWidth(text) {
   return ctx.measureText(text).width;
 }
 
+// ── Paramètres ────────────────────────────────────────────────
+const DEFAULT_SETTINGS = { fontSize: 13, lineHeight: 1.85, fontFamily: "'JetBrains Mono'", scrollback: 5000 };
+
+function loadSettings() {
+  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('leyo-settings') || '{}') }; }
+  catch { return { ...DEFAULT_SETTINGS }; }
+}
+
+function saveSettings(s) {
+  localStorage.setItem('leyo-settings', JSON.stringify(s));
+}
+
+function applySettings(s) {
+  document.documentElement.style.setProperty('--font-size', s.fontSize + 'px');
+  document.documentElement.style.setProperty('--line-height', s.lineHeight);
+  document.documentElement.style.setProperty('--mono-font', s.fontFamily);
+}
+
+function initSettings() {
+  const s = loadSettings();
+  applySettings(s);
+
+  const fsSlider  = document.getElementById('fontSizeSlider');
+  const fsVal     = document.getElementById('fontSizeValue');
+  const lhSlider  = document.getElementById('lineHeightSlider');
+  const lhVal     = document.getElementById('lineHeightValue');
+  const ffSelect  = document.getElementById('fontFamilySelect');
+  const sbSlider  = document.getElementById('scrollbackSlider');
+  const sbVal     = document.getElementById('scrollbackValue');
+
+  fsSlider.value  = s.fontSize;    fsVal.textContent  = s.fontSize + 'px';
+  lhSlider.value  = s.lineHeight;  lhVal.textContent  = s.lineHeight;
+  ffSelect.value  = s.fontFamily;
+  sbSlider.value  = s.scrollback;  sbVal.textContent  = s.scrollback;
+
+  const update = () => {
+    const ns = {
+      fontSize:   Number(fsSlider.value),
+      lineHeight: Number(lhSlider.value),
+      fontFamily: ffSelect.value,
+      scrollback: Number(sbSlider.value),
+    };
+    fsVal.textContent = ns.fontSize + 'px';
+    lhVal.textContent = ns.lineHeight;
+    sbVal.textContent = ns.scrollback;
+    applySettings(ns);
+    saveSettings(ns);
+  };
+
+  fsSlider.addEventListener('input', update);
+  lhSlider.addEventListener('input', update);
+  ffSelect.addEventListener('change', update);
+  sbSlider.addEventListener('input', update);
+
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    document.getElementById('settingsModal').style.display = 'flex';
+  });
+  document.getElementById('settingsClose').addEventListener('click', () => {
+    document.getElementById('settingsModal').style.display = 'none';
+  });
+  document.getElementById('settingsModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('settingsModal'))
+      document.getElementById('settingsModal').style.display = 'none';
+  });
+}
+
+// ── Menu contextuel fichiers ──────────────────────────────────
+let ctxTarget = null;   // { name, isDir }
+let fileClipboard = null; // { name, mode: 'copy'|'cut' }
+
+function showCtxMenu(e, name, isDir) {
+  e.preventDefault();
+  ctxTarget = { name, isDir };
+  const menu = document.getElementById('ctxMenu');
+  document.getElementById('ctxOpen').textContent = isDir ? 'Naviguer ici' : 'Ouvrir';
+  document.getElementById('ctxPaste').dataset.empty = fileClipboard ? 'false' : 'true';
+  menu.style.display = 'block';
+  const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
+  const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+}
+
+function hideCtxMenu() {
+  document.getElementById('ctxMenu').style.display = 'none';
+  ctxTarget = null;
+}
+
+function initCtxMenu() {
+  document.addEventListener('click',        hideCtxMenu);
+  document.addEventListener('contextmenu',  (e) => { if (!e.target.closest('.file-item')) hideCtxMenu(); });
+
+  document.getElementById('ctxOpen').addEventListener('click', async () => {
+    if (!ctxTarget) return;
+    if (ctxTarget.isDir) await runCommand(activePaneId, `cd "${ctxTarget.name}"`);
+    else                 await openEditor(activePaneId, ctxTarget.name);
+  });
+
+  document.getElementById('ctxRename').addEventListener('click', async () => {
+    if (!ctxTarget) return;
+    const newName = prompt(`Renommer "${ctxTarget.name}" en :`, ctxTarget.name);
+    if (!newName || newName === ctxTarget.name) return;
+    const err = await window.go.main.App.RenameFile(ctxTarget.name, newName);
+    if (err) addLine(activePaneId, '❌ ' + err, 'out-error');
+    else     await refreshFiles();
+  });
+
+  document.getElementById('ctxCopy').addEventListener('click', () => {
+    if (!ctxTarget) return;
+    fileClipboard = { name: ctxTarget.name, mode: 'copy' };
+    addLine(activePaneId, `📋 Copié : ${ctxTarget.name}`, 'out-muted');
+  });
+
+  document.getElementById('ctxCut').addEventListener('click', () => {
+    if (!ctxTarget) return;
+    fileClipboard = { name: ctxTarget.name, mode: 'cut' };
+    addLine(activePaneId, `✂ Coupé : ${ctxTarget.name}`, 'out-muted');
+  });
+
+  document.getElementById('ctxPaste').addEventListener('click', async () => {
+    if (!fileClipboard) return;
+    const { name, mode } = fileClipboard;
+    const ext  = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
+    const base = ext ? name.slice(0, -ext.length) : name;
+    const dst  = mode === 'cut' ? name : `${base}_copie${ext}`;
+    if (mode === 'cut') {
+      const err = await window.go.main.App.RenameFile(name, dst);
+      if (err) { addLine(activePaneId, '❌ ' + err, 'out-error'); return; }
+      fileClipboard = null;
+    } else {
+      const err = await window.go.main.App.CopyFileTo(name, dst);
+      if (err) { addLine(activePaneId, '❌ ' + err, 'out-error'); return; }
+    }
+    await refreshFiles();
+    addLine(activePaneId, `✅ ${mode === 'cut' ? 'Déplacé' : 'Copié'} → ${dst}`, 'out-success');
+  });
+
+  document.getElementById('ctxDelete').addEventListener('click', async () => {
+    if (!ctxTarget) return;
+    const ok = confirm(`Supprimer "${ctxTarget.name}" ?`);
+    if (!ok) return;
+    const err = await window.go.main.App.DeleteFile(ctxTarget.name);
+    if (err) addLine(activePaneId, '❌ ' + err, 'out-error');
+    else { await refreshFiles(); addLine(activePaneId, `🗑 Supprimé : ${ctxTarget.name}`, 'out-muted'); }
+  });
+
+  document.getElementById('ctxNewFile').addEventListener('click', async () => {
+    const name = prompt('Nom du nouveau fichier :');
+    if (!name) return;
+    const err = await window.go.main.App.CreateNewFile(name);
+    if (err) addLine(activePaneId, '❌ ' + err, 'out-error');
+    else     await refreshFiles();
+  });
+
+  document.getElementById('ctxNewFolder').addEventListener('click', async () => {
+    const name = prompt('Nom du nouveau dossier :');
+    if (!name) return;
+    const err = await window.go.main.App.CreateNewDir(name);
+    if (err) addLine(activePaneId, '❌ ' + err, 'out-error');
+    else     await refreshFiles();
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
   history = await window.go.main.App.GetHistory() || [];
   paneState[1].historyIndex = history.length;
   paneState[2].historyIndex = history.length;
   loadThemes();
+  initSettings();
+  initCtxMenu();
   initSidebarResize();
   createTab();
   document.getElementById('commandInput1').focus();
@@ -1000,6 +1165,7 @@ async function refreshFiles() {
     item.appendChild(nameEl);
 
     item.draggable = true;
+    item.addEventListener('contextmenu', (e) => showCtxMenu(e, f.Name, f.IsDir));
     item.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', f.Name);
       e.dataTransfer.effectAllowed = 'copy';

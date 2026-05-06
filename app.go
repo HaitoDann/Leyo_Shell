@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -273,6 +274,107 @@ func (a *App) WriteFile(name, content string) string {
 	dir, _ := os.Getwd()
 	fullPath := filepath.Join(dir, name)
 	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+// ── Opérations fichiers ───────────────────────────────────────
+
+func (a *App) DeleteFile(name string) string {
+	dir, _ := os.Getwd()
+	fullPath := filepath.Clean(filepath.Join(dir, name))
+	if err := os.RemoveAll(fullPath); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func (a *App) RenameFile(oldName, newName string) string {
+	dir, _ := os.Getwd()
+	oldPath := filepath.Clean(filepath.Join(dir, oldName))
+	newPath := filepath.Clean(filepath.Join(dir, newName))
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func (a *App) CopyFileTo(srcName, dstName string) string {
+	dir, _ := os.Getwd()
+	src := filepath.Clean(filepath.Join(dir, srcName))
+	dst := filepath.Clean(filepath.Join(dir, dstName))
+	info, err := os.Stat(src)
+	if err != nil {
+		return err.Error()
+	}
+	if info.IsDir() {
+		return leyoCopyDir(src, dst)
+	}
+	return leyoCopyFile(src, dst)
+}
+
+func leyoCopyFile(src, dst string) string {
+	in, err := os.Open(src)
+	if err != nil {
+		return err.Error()
+	}
+	defer in.Close()
+	info, _ := in.Stat()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err.Error()
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func leyoCopyDir(src, dst string) string {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err.Error()
+	}
+	if err := os.MkdirAll(dst, info.Mode()); err != nil {
+		return err.Error()
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err.Error()
+	}
+	for _, e := range entries {
+		s := filepath.Join(src, e.Name())
+		d := filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			if msg := leyoCopyDir(s, d); msg != "" {
+				return msg
+			}
+		} else {
+			if msg := leyoCopyFile(s, d); msg != "" {
+				return msg
+			}
+		}
+	}
+	return ""
+}
+
+func (a *App) CreateNewFile(name string) string {
+	dir, _ := os.Getwd()
+	fullPath := filepath.Clean(filepath.Join(dir, name))
+	f, err := os.Create(fullPath)
+	if err != nil {
+		return err.Error()
+	}
+	f.Close()
+	return ""
+}
+
+func (a *App) CreateNewDir(name string) string {
+	dir, _ := os.Getwd()
+	fullPath := filepath.Clean(filepath.Join(dir, name))
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
 		return err.Error()
 	}
 	return ""

@@ -27,6 +27,7 @@
       <div class="titlebar-right">
         <button class="split-btn" id="splitBtn" title="Split view (Ctrl+D)">⬛⬛</button>
         <button class="theme-btn" id="themeBtn" title="Thèmes (Ctrl+K)">◈</button>
+        <button class="settings-btn" id="settingsBtn" title="Paramètres">⚙</button>
         <span class="header-time" id="headerTime"></span>
       </div>
     </div>
@@ -35,6 +36,58 @@
     <div class="tabs-bar">
       <div class="tabs" id="tabs"></div>
       <button class="tab-add" id="tabAdd" title="Nouvel onglet (Ctrl+T)">+</button>
+    </div>
+
+    <!-- ── MODAL PARAMÈTRES ── -->
+    <div class="settings-modal" id="settingsModal" style="display:none;">
+      <div class="settings-inner">
+        <div class="settings-header">
+          <span>Paramètres</span>
+          <button class="settings-close" id="settingsClose">✕</button>
+        </div>
+        <div class="settings-body">
+
+          <div class="settings-section">
+            <div class="settings-section-title">Apparence</div>
+            <div class="settings-row">
+              <label class="settings-label">Taille de police</label>
+              <div class="settings-control">
+                <input type="range" class="settings-slider" id="fontSizeSlider" min="11" max="16" step="1" value="13"/>
+                <span class="settings-value" id="fontSizeValue">13px</span>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label class="settings-label">Hauteur de ligne</label>
+              <div class="settings-control">
+                <input type="range" class="settings-slider" id="lineHeightSlider" min="1.4" max="2.2" step="0.1" value="1.85"/>
+                <span class="settings-value" id="lineHeightValue">1.85</span>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label class="settings-label">Police terminal</label>
+              <div class="settings-control">
+                <select class="settings-select" id="fontFamilySelect">
+                  <option value="'JetBrains Mono'">JetBrains Mono</option>
+                  <option value="'Fira Code'">Fira Code</option>
+                  <option value="Consolas">Consolas</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-title">Terminal</div>
+            <div class="settings-row">
+              <label class="settings-label">Scroll buffer</label>
+              <div class="settings-control">
+                <input type="range" class="settings-slider" id="scrollbackSlider" min="500" max="10000" step="500" value="5000"/>
+                <span class="settings-value" id="scrollbackValue">5000</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
 
     <!-- ── MODAL THÈMES ── -->
@@ -263,6 +316,21 @@
 
       </div>
 
+    </div>
+
+    <!-- ── MENU CONTEXTUEL FICHIERS ── -->
+    <div class="ctx-menu" id="ctxMenu" style="display:none;">
+      <div class="ctx-item" id="ctxOpen">Ouvrir</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" id="ctxRename">Renommer</div>
+      <div class="ctx-item" id="ctxCopy">Copier</div>
+      <div class="ctx-item" id="ctxCut">Couper</div>
+      <div class="ctx-item ctx-paste" id="ctxPaste">Coller</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item ctx-danger" id="ctxDelete">Supprimer</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" id="ctxNewFile">Nouveau fichier</div>
+      <div class="ctx-item" id="ctxNewFolder">Nouveau dossier</div>
     </div>
 
     <!-- ── STATUS BAR (24px) ── -->
