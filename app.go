@@ -278,17 +278,19 @@ func (a *App) WriteFile(name, content string) string {
 	return ""
 }
 
-// ── PTY — stubs (implémentation complète en 2.0 NEXUS) ───────
-// Ces méthodes exposent l'API au frontend sans dépendance conpty
+// ── PTY réel via ConPTY (Leyo 1.10) ──────────────────────────
+
+// IsPTYCommand détecte les commandes qui nécessitent un terminal interactif.
 func (a *App) IsPTYCommand(input string) bool {
 	ptyCommands := []string{
 		"python", "python3", "py",
-		"ssh", "node", "npm run",
+		"ssh", "node",
 		"mysql", "psql", "redis-cli",
 		"powershell", "pwsh",
 		"bash", "sh", "wsl",
 		"ftp", "telnet",
 		"ipython", "julia",
+		"vim", "nvim", "nano", "htop",
 	}
 	lower := strings.ToLower(strings.TrimSpace(input))
 	for _, cmd := range ptyCommands {
@@ -299,24 +301,72 @@ func (a *App) IsPTYCommand(input string) bool {
 	return false
 }
 
+// StartShell lance une session ConPTY persistante (cmd.exe) pour un pane.
+// Le frontend reçoit les événements "pty:data:<sessionId>" en continu.
+func (a *App) StartShell(sessionId string, cols, rows int) string {
+	err := shell.Manager.Start(
+		sessionId, cols, rows,
+		func(data []byte) {
+			// Émet les données brutes (ANSI inclus) au frontend
+			runtime.EventsEmit(a.ctx, "pty:data:"+sessionId, string(data))
+		},
+		func() {
+			runtime.EventsEmit(a.ctx, "pty:exit:"+sessionId, nil)
+		},
+	)
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+// WriteShell envoie des données au PTY (frappe clavier, commande + \r\n).
+func (a *App) WriteShell(sessionId, data string) string {
+	if err := shell.Manager.Write(sessionId, data); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+// ResizeShell redimensionne le terminal PTY.
+func (a *App) ResizeShell(sessionId string, cols, rows int) {
+	shell.Manager.Resize(sessionId, cols, rows)
+}
+
+// StopShell ferme proprement la session ConPTY.
+func (a *App) StopShell(sessionId string) {
+	shell.Manager.Stop(sessionId)
+}
+
+// StartPTYSession — gardé pour compatibilité, redirige vers StartShell.
 func (a *App) StartPTYSession(sessionId, command string, cols, rows int) string {
-	// Stub — PTY réel prévu pour Leyo 2.0 NEXUS
-	// Pour l'instant : ouvre cmd.exe avec la commande dans une fenêtre séparée
-	go func() {
-		cmd := exec.Command("cmd", "/C", "start", "cmd", "/K", command)
-		cmd.Start()
-	}()
-	// Signale immédiatement la fin pour fermer le conteneur PTY
-	runtime.EventsEmit(a.ctx, "pty:fallback:"+sessionId, command)
+	err := shell.Manager.Start(
+		sessionId, cols, rows,
+		func(data []byte) {
+			runtime.EventsEmit(a.ctx, "pty:data:"+sessionId, string(data))
+		},
+		func() {
+			runtime.EventsEmit(a.ctx, "pty:exit:"+sessionId, nil)
+		},
+	)
+	if err != nil {
+		return err.Error()
+	}
+	// Envoie la commande initiale si fournie
+	if command != "" {
+		shell.Manager.Write(sessionId, command+"\r\n")
+	}
 	return ""
 }
 
 func (a *App) WritePTY(sessionId, data string) string {
-	return ""
+	return a.WriteShell(sessionId, data)
 }
 
 func (a *App) ResizePTY(sessionId string, cols, rows int) {
+	a.ResizeShell(sessionId, cols, rows)
 }
 
 func (a *App) StopPTYSession(sessionId string) {
+	a.StopShell(sessionId)
 }

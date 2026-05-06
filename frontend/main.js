@@ -1,3 +1,91 @@
+// ── Parser ANSI → HTML ────────────────────────────────────────
+// Convertit les séquences d'échappement ANSI (couleurs, gras, etc.)
+// en spans HTML stylisés pour l'affichage dans le div output.
+(function() {
+  const ANSI_COLORS_FG = [
+    '#21222C','#FF5555','#50FA7B','#F1FA8C',
+    '#BD93F9','#FF79C6','#8BE9FD','#F8F8F2',
+    // bright
+    '#6272A4','#FF6E6E','#69FF94','#FFFFA5',
+    '#D6ACFF','#FF92DF','#A4FFFF','#FFFFFF',
+  ];
+  const ANSI_COLORS_BG = ANSI_COLORS_FG;
+
+  window.ansiToHtml = function(raw) {
+    let out = '';
+    let i   = 0;
+    let fg  = null, bg = null, bold = false, italic = false, underline = false;
+    const openSpan = () => {
+      let style = '';
+      if (fg) style += `color:${fg};`;
+      if (bg) style += `background:${bg};`;
+      if (bold)      style += 'font-weight:700;';
+      if (italic)    style += 'font-style:italic;';
+      if (underline) style += 'text-decoration:underline;';
+      return style ? `<span style="${style}">` : '<span>';
+    };
+    let inSpan = false;
+
+    const flush = (text) => {
+      if (!text) return;
+      const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      if (fg || bg || bold || italic || underline) {
+        out += openSpan() + escaped + '</span>';
+      } else {
+        out += escaped;
+      }
+    };
+
+    while (i < raw.length) {
+      if (raw[i] === '\x1b' && raw[i+1] === '[') {
+        // Lit le code SGR
+        let j = i + 2;
+        while (j < raw.length && raw[j] !== 'm' && raw[j] !== 'A' &&
+               raw[j] !== 'B' && raw[j] !== 'C' && raw[j] !== 'D' &&
+               raw[j] !== 'H' && raw[j] !== 'J' && raw[j] !== 'K') j++;
+
+        if (raw[j] === 'm') {
+          const params = raw.slice(i+2, j).split(';').map(Number);
+          let p = 0;
+          while (p < params.length) {
+            const n = params[p];
+            if (n === 0)        { fg = null; bg = null; bold = false; italic = false; underline = false; }
+            else if (n === 1)   bold = true;
+            else if (n === 3)   italic = true;
+            else if (n === 4)   underline = true;
+            else if (n === 22)  bold = false;
+            else if (n === 23)  italic = false;
+            else if (n === 24)  underline = false;
+            else if (n >= 30 && n <= 37)  fg = ANSI_COLORS_FG[n-30];
+            else if (n === 39)  fg = null;
+            else if (n >= 40 && n <= 47)  bg = ANSI_COLORS_BG[n-40];
+            else if (n === 49)  bg = null;
+            else if (n >= 90 && n <= 97)  fg = ANSI_COLORS_FG[n-90+8];
+            else if (n >= 100 && n <= 107) bg = ANSI_COLORS_BG[n-100+8];
+            else if (n === 38 && params[p+1] === 5) { fg = `var(--c${params[p+2]})`; p+=2; }
+            else if (n === 48 && params[p+1] === 5) { bg = `var(--c${params[p+2]})`; p+=2; }
+            else if (n === 38 && params[p+1] === 2) { fg = `rgb(${params[p+2]},${params[p+3]},${params[p+4]})`; p+=4; }
+            else if (n === 48 && params[p+1] === 2) { bg = `rgb(${params[p+2]},${params[p+3]},${params[p+4]})`; p+=4; }
+            p++;
+          }
+        }
+        i = j + 1;
+      } else if (raw[i] === '\r') {
+        i++;
+      } else if (raw[i] === '\n') {
+        flush('\n');
+        i++;
+      } else {
+        let j = i;
+        while (j < raw.length && raw[j] !== '\x1b' && raw[j] !== '\r' && raw[j] !== '\n') j++;
+        flush(raw.slice(i, j));
+        i = j;
+      }
+    }
+    return out;
+  };
+})();
+
 // ── État global ───────────────────────────────────────────────
 let history = [];
 let splitActive = false;
@@ -246,7 +334,7 @@ async function toggleSplit() {
     setActivePane(2);
     const path = await window.go.main.App.GetCurrentPath();
     document.getElementById('segPath2').textContent = path;
-    addLine(2, 'Leyo Shell  1.9', 'out-welcome');
+    addLine(2, 'Leyo Shell  1.10', 'out-welcome');
     addLine(2, 'Ctrl+D pour fermer le split', 'out-muted');
     addLine(2, '', 'out-normal');
     await updateGitBranch(2);
@@ -317,58 +405,158 @@ function closeEditor() {
 
 document.getElementById('editorCloseBtn')?.addEventListener('click', closeEditor);
 
-// ── Système PTY ───────────────────────────────────────────────
+// ── Système PTY réel (xterm.js + ConPTY) ─────────────────────
 const ptyInstances = { 1: null, 2: null };
+
+const PTY_META = {
+  'python':     { icon: '🐍', label: 'Python'     },
+  'python3':    { icon: '🐍', label: 'Python'     },
+  'py':         { icon: '🐍', label: 'Python'     },
+  'node':       { icon: '⬡',  label: 'Node.js'   },
+  'ssh':        { icon: '🔒', label: 'SSH'        },
+  'powershell': { icon: '⚡', label: 'PowerShell' },
+  'pwsh':       { icon: '⚡', label: 'PowerShell' },
+  'mysql':      { icon: '🐬', label: 'MySQL'      },
+  'psql':       { icon: '🐘', label: 'PostgreSQL' },
+  'ipython':    { icon: '🔬', label: 'IPython'    },
+  'wsl':        { icon: '🐧', label: 'WSL'        },
+  'bash':       { icon: '$',  label: 'Bash'       },
+  'vim':        { icon: '◆',  label: 'Vim'        },
+  'nvim':       { icon: '◆',  label: 'Neovim'     },
+  'htop':       { icon: '▪',  label: 'htop'       },
+};
 
 function getPTYMeta(command) {
   const lower = command.toLowerCase().split(' ')[0];
-  const map = {
-    'python':     { icon: '🐍', label: 'Python'     },
-    'python3':    { icon: '🐍', label: 'Python'     },
-    'py':         { icon: '🐍', label: 'Python'     },
-    'node':       { icon: '⬡',  label: 'Node.js'   },
-    'ssh':        { icon: '🔒', label: 'SSH'        },
-    'powershell': { icon: '⚡', label: 'PowerShell' },
-    'pwsh':       { icon: '⚡', label: 'PowerShell' },
-    'mysql':      { icon: '🐬', label: 'MySQL'      },
-    'psql':       { icon: '🐘', label: 'PostgreSQL' },
-    'ipython':    { icon: '🔬', label: 'IPython'    },
-    'wsl':        { icon: '🐧', label: 'WSL'        },
-    'bash':       { icon: '$',  label: 'Bash'       },
-  };
-  return map[lower] || { icon: '❯', label: command };
+  return PTY_META[lower] || { icon: '❯', label: command };
+}
+
+// Attend que LeyoXterm soit chargé (bundle defer)
+async function waitXterm() {
+  for (let i = 0; i < 20; i++) {
+    if (window.LeyoXterm?.Terminal) return true;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  return false;
 }
 
 async function openPTY(paneId, command) {
   const sessionId = `pty-${paneId}-${Date.now()}`;
-  const meta = getPTYMeta(command);
+  const meta      = getPTYMeta(command);
 
-  window.runtime.EventsOn(`pty:fallback:${sessionId}`, () => {
-    window.runtime.EventsOff(`pty:fallback:${sessionId}`);
-    document.getElementById(`output${paneId}`).style.display  = '';
-    document.getElementById(`ptyContainer${paneId}`).style.display = 'none';
-    addLine(paneId, `${meta.icon}  ${meta.label} ouvert dans une fenêtre externe`, 'out-muted');
-    addLine(paneId, '(PTY intégré prévu pour Leyo 2.0)', 'out-muted');
-    updateStatus(paneId, true);
-    document.getElementById(`commandInput${paneId}`).focus();
+  // Affiche le conteneur PTY, cache l'output normal
+  const outputEl    = document.getElementById(`output${paneId}`);
+  const ptyEl       = document.getElementById(`ptyContainer${paneId}`);
+  const ptyTermEl   = document.getElementById(`ptyTerm${paneId}`);
+  const ptyTitleEl  = document.getElementById(`ptyTitle${paneId}`);
+
+  outputEl.style.display  = 'none';
+  ptyEl.style.display     = 'flex';
+  ptyTitleEl.textContent  = `${meta.icon}  ${meta.label}`;
+
+  // Vérifie que xterm.js est dispo
+  const xtermOk = await waitXterm();
+  if (!xtermOk) {
+    addLine(paneId, `❌ xterm.js non disponible`, 'out-error');
+    outputEl.style.display = '';
+    ptyEl.style.display    = 'none';
+    return;
+  }
+
+  const { Terminal, FitAddon, WebLinksAddon } = window.LeyoXterm;
+
+  // Crée le terminal xterm.js
+  const term = new Terminal({
+    fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+    fontSize: 13,
+    theme: {
+      background:   '#08080E',
+      foreground:   '#D8D8E8',
+      cursor:       '#5BC8E8',
+      cursorAccent: '#08080E',
+      black:        '#21222C', red:     '#FF5555', green:  '#50FA7B', yellow: '#F1FA8C',
+      blue:         '#BD93F9', magenta: '#FF79C6', cyan:   '#8BE9FD', white:  '#F8F8F2',
+      brightBlack:  '#6272A4', brightRed: '#FF6E6E', brightGreen: '#69FF94',
+      brightYellow: '#FFFFA5', brightBlue: '#D6ACFF', brightMagenta: '#FF92DF',
+      brightCyan:   '#A4FFFF', brightWhite: '#FFFFFF',
+    },
+    allowTransparency: true,
+    cursorBlink: true,
+    scrollback: 5000,
   });
 
-  document.getElementById(`output${paneId}`).style.display       = 'none';
-  document.getElementById(`ptyContainer${paneId}`).style.display = 'flex';
-  document.getElementById(`ptyTitle${paneId}`).textContent       = `${meta.icon}  ${meta.label}`;
+  const fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
+  term.loadAddon(new WebLinksAddon());
 
-  await window.go.main.App.StartPTYSession(sessionId, command, 80, 24);
+  // Monte dans le DOM
+  ptyTermEl.innerHTML = '';
+  term.open(ptyTermEl);
+  fitAddon.fit();
+
+  // Stocke l'instance
+  ptyInstances[paneId] = { term, fitAddon, sessionId };
+
+  // Obtient les dimensions après fit
+  const cols = term.cols || 120;
+  const rows = term.rows || 30;
+
+  // Démarre la session ConPTY côté Go
+  const errMsg = await window.go.main.App.StartPTYSession(sessionId, command, cols, rows);
+  if (errMsg) {
+    addLine(paneId, `❌ PTY: ${errMsg}`, 'out-error');
+    outputEl.style.display = '';
+    ptyEl.style.display    = 'none';
+    return;
+  }
+
+  // Reçoit les données du PTY → affiche dans xterm.js
+  window.runtime.EventsOn(`pty:data:${sessionId}`, (data) => {
+    term.write(data);
+  });
+
+  // Quand le process se termine
+  window.runtime.EventsOn(`pty:exit:${sessionId}`, () => {
+    window.runtime.EventsOff(`pty:data:${sessionId}`);
+    window.runtime.EventsOff(`pty:exit:${sessionId}`);
+    closePTY(paneId);
+  });
+
+  // Input clavier → envoyé au PTY
+  term.onData(async (data) => {
+    await window.go.main.App.WriteShell(sessionId, data);
+  });
+
+  // Resize quand le conteneur change de taille
+  const resizeObs = new ResizeObserver(() => {
+    fitAddon.fit();
+    window.go.main.App.ResizeShell(sessionId, term.cols, term.rows);
+  });
+  resizeObs.observe(ptyTermEl);
+  ptyInstances[paneId].resizeObs = resizeObs;
+
+  // Focus immédiat
+  term.focus();
 }
 
 async function closePTY(paneId) {
   const instance = ptyInstances[paneId];
   if (instance) {
-    await window.go.main.App.StopPTYSession(instance.sessionId);
+    window.runtime.EventsOff(`pty:data:${instance.sessionId}`);
+    window.runtime.EventsOff(`pty:exit:${instance.sessionId}`);
+    instance.resizeObs?.disconnect();
+    instance.term.dispose();
+    await window.go.main.App.StopShell(instance.sessionId);
     ptyInstances[paneId] = null;
   }
   document.getElementById(`output${paneId}`).style.display       = '';
   document.getElementById(`ptyContainer${paneId}`).style.display = 'none';
   document.getElementById(`commandInput${paneId}`).focus();
+  await refreshFiles();
+  const newPath = await window.go.main.App.GetCurrentPath();
+  document.getElementById(`segPath${paneId}`).textContent = newPath;
+  await updateGitBranch(paneId);
+  updateStatus(paneId, true);
 }
 
 // ── Prévisualisation ──────────────────────────────────────────
@@ -632,8 +820,24 @@ async function init() {
 function addLine(paneId, text, cls = 'out-normal') {
   const output = document.getElementById(`output${paneId}`);
   const div    = document.createElement('div');
-  div.className  = cls;
-  div.textContent = text;
+  div.className = cls;
+  // Rendu ANSI pour la sortie des commandes
+  if (cls === 'out-normal' && window.ansiToHtml) {
+    div.innerHTML = window.ansiToHtml(text);
+  } else {
+    div.textContent = text;
+  }
+  output.appendChild(div);
+  output.scrollTop = output.scrollHeight;
+  searchState[paneId].originalHTML = '';
+}
+
+// Ajoute plusieurs lignes d'output ANSI en préservant les blocs colorés
+function addAnsiBlock(paneId, raw) {
+  const output = document.getElementById(`output${paneId}`);
+  const div    = document.createElement('div');
+  div.className = 'out-normal';
+  div.innerHTML = window.ansiToHtml ? window.ansiToHtml(raw) : raw.replace(/&/g,'&amp;').replace(/</g,'&lt;');
   output.appendChild(div);
   output.scrollTop = output.scrollHeight;
   searchState[paneId].originalHTML = '';
@@ -860,7 +1064,7 @@ async function runCommand(paneId, input) {
   const hasError = !!result.error;
   if (result.error)      addLine(paneId, '❌ ' + result.error, 'out-error');
   if (result.suggestion) addSuggestion(paneId, result.suggestion, input);
-  if (result.output)     addLine(paneId, result.output, 'out-normal');
+  if (result.output)     addAnsiBlock(paneId, result.output);
 
   updateStatus(paneId, !hasError);
   const newPath = await window.go.main.App.GetCurrentPath();
@@ -963,7 +1167,7 @@ function setupPane(paneId) {
 
 // ── Bienvenue ─────────────────────────────────────────────────
 async function showWelcome() {
-  addLine(1, 'Leyo Shell  1.9', 'out-welcome');
+  addLine(1, 'Leyo Shell  1.10', 'out-welcome');
   addLine(1, 'Ctrl+K thèmes  ·  Ctrl+D split  ·  Ctrl+F recherche  ·  nano fichier', 'out-muted');
   addLine(1, '', 'out-normal');
 

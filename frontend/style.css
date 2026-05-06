@@ -481,17 +481,17 @@ body {
 .file-item[draggable="true"]:active { cursor: grabbing; }
 .prompt-bar.drop-active { background: rgba(91,200,232,0.04); border-top-color: rgba(91,200,232,0.2); }
 
-/* ── PTY TERMINAL ─────────────────────────────── */
+/* ── PTY TERMINAL (xterm.js) ──────────────────── */
 .pty-container {
   flex: 1; display: flex; flex-direction: column;
-  overflow: hidden; border: 1px solid var(--border);
-  border-radius: 6px; margin-bottom: 8px; background: #0A0A0A;
+  overflow: hidden; border: 1px solid rgba(91,200,232,0.12);
+  border-radius: 6px; margin-bottom: 8px; background: var(--bg);
 }
 
 .pty-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 14px; background: rgba(136,85,238,0.08);
-  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  padding: 5px 14px; background: rgba(91,200,232,0.05);
+  border-bottom: 1px solid rgba(91,200,232,0.08); flex-shrink: 0;
 }
 
 .pty-title { font-size: 11px; color: var(--cyan); font-weight: 600; letter-spacing: 0.5px; }
@@ -503,7 +503,23 @@ body {
 }
 
 .pty-close:hover { border-color: var(--error); color: var(--error); }
-.pty-term { flex: 1; padding: 8px; overflow: hidden; }
+
+/* Zone xterm.js — prend toute la hauteur disponible */
+.pty-term {
+  flex: 1;
+  overflow: hidden;
+  padding: 4px;
+  min-height: 0;
+}
+
+/* Override xterm.js pour coller au thème Leyo */
+.pty-term .xterm { height: 100%; }
+.pty-term .xterm-viewport { background: transparent !important; }
+.pty-term .xterm-screen  { }
+
+/* Scrollbar xterm cohérente avec le reste */
+.pty-term .xterm-scroll-area::-webkit-scrollbar { width: 3px; }
+.pty-term .xterm-scroll-area::-webkit-scrollbar-thumb { background: rgba(136,85,238,0.4); border-radius: 2px; }
 
 /* ── ÉDITEUR ZONE ONGLET ──────────────────────── */
 .editor-area {
