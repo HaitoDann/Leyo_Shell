@@ -16,7 +16,7 @@ import (
 // Chaque pane du frontend a sa propre session.
 type PTYSession struct {
 	id     string
-	cpty   *conpty.ConPTY
+	cpty   *conpty.ConPty
 	cancel context.CancelFunc
 	mu     sync.Mutex
 	closed bool
@@ -52,7 +52,7 @@ func (m *PTYManager) Start(sessionId string, cols, rows int,
 
 	cpty, err := conpty.Start(
 		`cmd.exe`,
-		conpty.ConPtyDimensions(uint16(cols), uint16(rows)),
+		conpty.ConPtyDimensions(cols, rows),
 	)
 	if err != nil {
 		return fmt.Errorf("conpty start: %w", err)
@@ -131,7 +131,7 @@ func (m *PTYManager) Resize(sessionId string, cols, rows int) {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	if !sess.closed {
-		sess.cpty.Resize(uint16(cols), uint16(rows))
+		sess.cpty.Resize(cols, rows)
 	}
 }
 
