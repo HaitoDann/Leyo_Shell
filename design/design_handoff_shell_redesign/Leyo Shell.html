@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>Leyo Shell — Directions UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #0a0a0d; color: #e8e8f0; font-family: Inter, sans-serif; }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="shells/ShellWindow.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+
+function Intro() {
+  return (
+    <div style={{
+      width: 1100,
+      padding: "32px 36px",
+      background: "linear-gradient(180deg, #0d0d14 0%, #08080d 100%)",
+      borderRadius: 10,
+      border: "1px solid rgba(255,255,255,0.08)",
+      fontFamily: "Inter, sans-serif",
+      color: "#e8e8f0",
+      display: "flex",
+      gap: 28,
+      alignItems: "center",
+    }}>
+      <img src="assets/logo.png" style={{ width: 88, height: 88, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 11, letterSpacing: 2, color: "#8a8a9a", textTransform: "uppercase", marginBottom: 8 }}>
+          Direction visuelle · v1.7+
+        </div>
+        <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: -0.5, marginBottom: 10 }}>
+          Leyo Shell — refonte douce
+        </div>
+        <div style={{ fontSize: 14, lineHeight: 1.6, color: "#a8a8b8", maxWidth: 760 }}>
+          Trois directions pour Leyo, toutes pensées sobres et épurées avec des accents pastel
+          plutôt que néon. Mêmes composants (titlebar, onglets, sidebar, prompt VinX, ghost text,
+          suggestion Levenshtein, preview cat) — seule la palette change. Polygones low-poly
+          subtils en arrière-plan, type JetBrains Mono pour le shell + Inter pour l'UI.
+        </div>
+        <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {[
+            ["Velvet Night", "#9ad8ff", "#cba8ff"],
+            ["Dusk", "#ffc9a8", "#d4a8e0"],
+            ["Amber", "#f0c878", "#e8a868"],
+          ].map(([name, c1, c2]) => (
+            <div key={name} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "6px 12px",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 99,
+              fontSize: 12,
+              color: "#c8c8d8",
+            }}>
+              <span style={{ width: 10, height: 10, borderRadius: 99, background: c1 }} />
+              <span style={{ width: 10, height: 10, borderRadius: 99, background: c2, marginLeft: -4 }} />
+              <span style={{ marginLeft: 4 }}>{name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <DesignCanvas
+      title="Leyo Shell"
+      subtitle="Trois directions visuelles douces et épurées"
+    >
+      <DCSection id="intro" title="Vision">
+        <DCArtboard id="intro-card" label="Note de direction" width={1100} height={188}>
+          <Intro />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="dirs" title="Directions">
+        <DCArtboard id="velvet" label="A · Velvet Night — officiel adouci" width={1100} height={700}>
+          <ShellWindow themeKey="velvet" />
+        </DCArtboard>
+        <DCArtboard id="dusk" label="B · Dusk — sunset orange × violet" width={1100} height={700}>
+          <ShellWindow themeKey="dusk" />
+        </DCArtboard>
+        <DCArtboard id="amber" label="C · Amber — solarisé chaud" width={1100} height={700}>
+          <ShellWindow themeKey="amber" />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+</body>
+</html>
