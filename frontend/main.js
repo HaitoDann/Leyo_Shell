@@ -22,7 +22,6 @@ function applyTheme(theme) {
   root.setProperty('--text',    theme.text);
   currentThemeName = theme.name;
   renderThemeCards();
-  // Recharge le thème dans l'éditeur si ouvert
   window.LeyoEditor?.reloadTheme();
 }
 
@@ -111,13 +110,16 @@ function initSidebarResize() {
 }
 
 // ── Système d'onglets ─────────────────────────────────────────
+// Tab shell :   { id, label, type:'shell',  output, path }
+// Tab éditeur : { id, label, type:'editor', filename, sourcePaneId, savedContent, hasUnsavedChanges }
+
 let tabs = [];
 let activeTab = null;
 let tabCounter = 0;
 
 function createTab() {
   const id = ++tabCounter;
-  const tab = { id, label: `Shell ${id}`, output: '', path: 'C:\\' };
+  const tab = { id, label: `Shell ${id}`, type: 'shell', output: '', path: 'C:\\' };
   tabs.push(tab);
   renderTabs();
   switchTab(id);
@@ -129,9 +131,18 @@ function renderTabs() {
   container.innerHTML = '';
   tabs.forEach(t => {
     const div = document.createElement('div');
-    div.className = 'tab' + (t.id === activeTab?.id ? ' active' : '');
+    const isEditor = t.type === 'editor';
+    const isActive = t.id === activeTab?.id;
+    div.className = 'tab' + (isActive ? ' active' : '') + (isEditor ? ' tab-editor' : '');
+
+    const label = isEditor ? `✎ ${t.label}` : t.label;
+    const isModified = isEditor
+      ? (isActive ? window.LeyoEditor?.isModified() : t.hasUnsavedChanges)
+      : false;
+    const modifiedDot = isModified ? '<span class="tab-modified">●</span>' : '';
+
     div.innerHTML = `
-      <span onclick="switchTab(${t.id})">${t.label}</span>
+      <span onclick="switchTab(${t.id})">${label}${modifiedDot}</span>
       ${tabs.length > 1 ? `<span class="tab-close" onclick="closeTab(event,${t.id})">✕</span>` : ''}
     `;
     container.appendChild(div);
@@ -139,29 +150,84 @@ function renderTabs() {
 }
 
 async function switchTab(id) {
-  if (activeTab) {
+  // Sauvegarde de l'état de l'onglet courant
+  if (activeTab?.type === 'shell') {
     activeTab.output = document.getElementById('output1').innerHTML;
     activeTab.path   = document.getElementById('segPath1').textContent;
+  } else if (activeTab?.type === 'editor' && window.LeyoEditor) {
+    activeTab.savedContent      = window.LeyoEditor.getContent();
+    activeTab.hasUnsavedChanges = window.LeyoEditor.isModified();
+    window.LeyoEditor.destroyView();
   }
+
   activeTab = tabs.find(t => t.id === id);
   if (!activeTab) return;
-  document.getElementById('output1').innerHTML          = activeTab.output;
-  document.getElementById('segPath1').textContent       = activeTab.path;
-  document.getElementById('sidebarPath').textContent    = activeTab.path;
-  document.getElementById('commandInput1').value        = '';
-  await updateGhost(1, '');
   renderTabs();
-  await window.go.main.App.RunCommand(`cd "${activeTab.path}"`);
-  await refreshFiles();
-  await updateGitBranch(1);
+
+  if (activeTab.type === 'shell') {
+    document.getElementById('terminalsArea').style.display = '';
+    document.getElementById('editorArea').style.display   = 'none';
+
+    document.getElementById('output1').innerHTML          = activeTab.output;
+    document.getElementById('segPath1').textContent       = activeTab.path;
+    document.getElementById('sidebarPath').textContent    = activeTab.path;
+    document.getElementById('commandInput1').value        = '';
+    await updateGhost(1, '');
+    await window.go.main.App.RunCommand(`cd "${activeTab.path}"`);
+    await refreshFiles();
+    await updateGitBranch(1);
+    document.getElementById('commandInput1').focus();
+
+  } else if (activeTab.type === 'editor') {
+    document.getElementById('terminalsArea').style.display = 'none';
+    document.getElementById('editorArea').style.display   = 'flex';
+
+    if (window.LeyoEditor) {
+      if (activeTab.savedContent !== null) {
+        window.LeyoEditor.setContent(
+          activeTab.sourcePaneId,
+          activeTab.filename,
+          activeTab.savedContent,
+          activeTab.hasUnsavedChanges
+        );
+      } else {
+        await window.LeyoEditor.loadFile(activeTab.sourcePaneId, activeTab.filename);
+      }
+    }
+  }
 }
 
 function closeTab(e, id) {
   e.stopPropagation();
   if (tabs.length <= 1) return;
+  const tab = tabs.find(t => t.id === id);
+  if (tab?.type === 'editor') {
+    const isModified = tab.id === activeTab?.id
+      ? window.LeyoEditor?.isModified()
+      : tab.hasUnsavedChanges;
+    if (isModified) {
+      const ok = window.confirm(`"${tab.filename}" a des modifications non sauvegardées.\nFermer quand même ?`);
+      if (!ok) return;
+    }
+    // Détruire la vue si c'est l'onglet actif
+    if (tab.id === activeTab?.id) window.LeyoEditor?.destroyView();
+  }
   tabs = tabs.filter(t => t.id !== id);
   if (activeTab?.id === id) switchTab(tabs[tabs.length - 1].id);
   else renderTabs();
+}
+
+// Fermeture de l'onglet éditeur actif sans re-confirmer (Ctrl+Q a déjà confirmé)
+function forceCloseEditorTab() {
+  const tab = activeTab;
+  if (!tab || tab.type !== 'editor') return;
+  tabs = tabs.filter(t => t.id !== tab.id);
+  if (tabs.length === 0) {
+    // Crée un onglet shell si plus rien
+    const id = ++tabCounter;
+    tabs.push({ id, label: `Shell ${id}`, type: 'shell', output: '', path: 'C:\\' });
+  }
+  switchTab(tabs[tabs.length - 1].id);
 }
 
 document.getElementById('tabAdd').addEventListener('click', () => createTab());
@@ -205,9 +271,8 @@ document.getElementById('pane1').addEventListener('mousedown', () => setActivePa
 document.getElementById('pane2').addEventListener('mousedown', () => setActivePane(2));
 document.getElementById('splitBtn').addEventListener('click', toggleSplit);
 
-// ── Éditeur CodeMirror ────────────────────────────────────────
-async function openEditor(paneId, filename) {
-  // Attend jusqu'à 3 secondes que le module soit chargé
+// ── Éditeur — ouverture en onglet ─────────────────────────────
+async function openEditorTab(paneId, filename) {
   let attempts = 0;
   while (!window.LeyoEditor && attempts < 15) {
     await new Promise(r => setTimeout(r, 200));
@@ -217,11 +282,33 @@ async function openEditor(paneId, filename) {
     addLine(paneId, '❌ Éditeur indisponible — vérifiez votre connexion internet (CodeMirror CDN)', 'out-error');
     return;
   }
-  await window.LeyoEditor.open(paneId, filename);
+
+  // Configure le callback de fermeture
+  window.LeyoEditor.onClose = forceCloseEditorTab;
+
+  // Si un onglet pour ce fichier est déjà ouvert, y basculer
+  const fn = filename.trim();
+  const existing = tabs.find(t => t.type === 'editor' && t.filename === fn);
+  if (existing) { await switchTab(existing.id); return; }
+
+  const id = ++tabCounter;
+  const shortName = fn.split(/[/\\]/).pop();
+  const tab = {
+    id,
+    label: shortName,
+    type: 'editor',
+    filename: fn,
+    sourcePaneId: paneId,
+    savedContent: null,
+    hasUnsavedChanges: false,
+  };
+  tabs.push(tab);
+  renderTabs();
+  await switchTab(id);
 }
 
-async function saveEditor() {
-  await window.LeyoEditor?.save();
+async function openEditor(paneId, filename) {
+  await openEditorTab(paneId, filename);
 }
 
 function closeEditor() {
@@ -526,7 +613,7 @@ function measureTextWidth(text) {
   const canvas = measureTextWidth._canvas ||
     (measureTextWidth._canvas = document.createElement('canvas'));
   const ctx = canvas.getContext('2d');
-  ctx.font = "13px 'JetBrains Mono', Consolas, monospace";
+  ctx.font = "13px 'Fira Code', 'JetBrains Mono', Consolas, monospace";
   return ctx.measureText(text).width;
 }
 
@@ -560,7 +647,7 @@ function getFileIcon(f) {
     if (['windows','system32'].includes(lower))  return { icon: '⊞', cls: 'type-sys'   };
     if (lower === 'node_modules')                return { icon: '⬡', cls: 'type-other' };
     if (lower === '$recycle.bin')                return { icon: '◌', cls: 'type-sys'   };
-    return { icon: '▶', cls: 'type-dir' };
+    return { icon: '▸', cls: 'type-dir' };
   }
   switch ((f.Ext || '').toLowerCase()) {
     case '.go':                return { icon: '◆', cls: 'type-go'    };
@@ -584,6 +671,28 @@ async function refreshFiles() {
     path.length > 28 ? '...' + path.slice(-25) : path;
 
   list.innerHTML = '';
+
+  // Entrée ".." pour remonter (sauf à la racine d'un lecteur, ex: C:\)
+  const isRoot = /^[A-Za-z]:\\?$/.test(path.trim());
+  if (!isRoot) {
+    const parentItem = document.createElement('div');
+    parentItem.className    = 'file-item file-item-parent';
+    parentItem.dataset.name = '..';
+    parentItem.title        = 'Remonter au dossier parent';
+    const upIcon = document.createElement('span');
+    upIcon.className   = 'icon type-dir';
+    upIcon.textContent = '↑';
+    const upLabel = document.createElement('span');
+    upLabel.className   = 'fname type-dir';
+    upLabel.textContent = '..';
+    parentItem.appendChild(upIcon);
+    parentItem.appendChild(upLabel);
+    parentItem.addEventListener('click', async () => {
+      await runCommand(activePaneId, 'cd ..');
+    });
+    list.appendChild(parentItem);
+  }
+
   files.forEach(f => {
     const item   = document.createElement('div');
     item.className    = 'file-item';
@@ -607,12 +716,10 @@ async function refreshFiles() {
     item.addEventListener('dragend', () => item.classList.remove('dragging'));
 
     if (f.IsDir) {
-      item.title = 'Glisse · Double-clic pour naviguer';
-      item.ondblclick = () => {
-        const input = document.getElementById(`commandInput${activePaneId}`);
-        input.value = `cd ${f.Name}`;
-        updateGhost(activePaneId, `cd ${f.Name}`);
-        input.focus();
+      item.title = 'Double-clic pour naviguer · Glisse vers le prompt';
+      // Double-clic exécute cd directement
+      item.ondblclick = async () => {
+        await runCommand(activePaneId, `cd ${f.Name}`);
       };
     } else {
       item.title = 'Clic pour prévisualiser · Glisse vers le prompt';
@@ -663,7 +770,7 @@ function initDragDrop() {
 async function runCommand(paneId, input) {
   if (!input) return;
 
-  // Éditeur nano
+  // Éditeur nano — ouvre un onglet éditeur
   const nanoMatch = input.trim().match(/^(?:nano|edit|ledit)\s+(.+)$/i);
   if (nanoMatch) {
     await openEditor(paneId, nanoMatch[1].trim());

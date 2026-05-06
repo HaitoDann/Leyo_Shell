@@ -26,7 +26,7 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
   font-size: 13px;
   font-weight: 400;
   height: 100vh;
@@ -204,6 +204,8 @@ body {
 .tab.active { background: rgba(136,85,238,0.12); color: var(--cyan); border-color: rgba(136,85,238,0.25); }
 .tab-close { font-size: 10px; color: var(--text-mute); cursor: pointer; padding: 0 2px; transition: color 0.1s; }
 .tab-close:hover { color: var(--error); }
+.tab-editor.active { background: rgba(91,200,232,0.1); color: var(--cyan); border-color: rgba(91,200,232,0.3); }
+.tab-modified { color: var(--warning); font-size: 9px; margin-left: 2px; }
 
 .tab-add {
   background: transparent; border: 1px solid var(--border); color: var(--text-mute);
@@ -228,6 +230,7 @@ body {
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
+  border-right: 1px solid var(--border);
 }
 
 .sidebar-resize-handle {
@@ -255,27 +258,47 @@ body {
   opacity: 0.6;
 }
 
-.sidebar-title { padding: 14px 16px 6px; font-size: 9px; letter-spacing: 2px; color: var(--text-mute); text-transform: uppercase; }
-
-.sidebar-path {
-  padding: 0 16px 10px; font-size: 10px; color: var(--text-mute);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  border-bottom: 1px solid var(--border); margin-bottom: 6px;
+.sidebar-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px 4px;
 }
 
-.file-list { flex: 1; overflow-y: auto; padding: 4px 0; min-height: 0; }
+.sidebar-title { font-size: 9px; letter-spacing: 2px; color: var(--text-mute); text-transform: uppercase; }
+
+.sidebar-path {
+  padding: 2px 16px 8px; font-size: 10px; color: var(--text-mute);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border-bottom: 1px solid var(--border); margin-bottom: 4px;
+}
+
+.file-list { flex: 1; overflow-y: auto; padding: 2px 0; min-height: 0; }
 
 .file-item {
   display: flex; align-items: center; gap: 0;
-  padding: 5px 0 5px 14px; cursor: pointer;
-  transition: background 0.1s; font-size: 11.5px;
+  padding: 5px 0 5px 0; cursor: pointer;
+  transition: background 0.1s, color 0.1s; font-size: 11.5px;
   white-space: nowrap; overflow: hidden; color: #6A6A8A; line-height: 1.6;
+  position: relative;
+}
+
+.file-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+  flex-shrink: 0;
 }
 
 .file-item:hover { background: rgba(136,85,238,0.07); color: var(--text-dim); }
+.file-item:hover::before { background: rgba(136,85,238,0.6); }
 .file-item.preview-active { background: rgba(91,200,232,0.08); color: var(--cyan); }
-.file-item .icon { font-size: 11px; flex-shrink: 0; width: 20px; text-align: center; display: inline-block; }
-.file-item .fname { overflow: hidden; text-overflow: ellipsis; }
+.file-item.preview-active::before { background: var(--cyan); }
+.file-item.file-item-parent { border-bottom: 1px solid rgba(255,255,255,0.04); margin-bottom: 2px; }
+.file-item.file-item-parent:hover::before { background: rgba(91,200,232,0.6); }
+.file-item .icon { font-size: 11px; flex-shrink: 0; width: 24px; text-align: center; display: inline-block; padding-left: 6px; }
+.file-item .fname { overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
 .file-item:hover .fname.type-dir { color: var(--cyan); }
 
 .type-dir   { color: var(--cyan); }
@@ -482,32 +505,14 @@ body {
 .pty-close:hover { border-color: var(--error); color: var(--error); }
 .pty-term { flex: 1; padding: 8px; overflow: hidden; }
 
-/* ── ÉDITEUR MODAL ────────────────────────────── */
-.editor-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.75);
-  backdrop-filter: blur(8px);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.editor-inner {
-  width: 82vw;
-  height: 82vh;
-  max-width: 1100px;
-  background: #1E1E2E;
-  border: 1px solid rgba(125,207,255,0.12);
-  border-radius: 12px;
+/* ── ÉDITEUR ZONE ONGLET ──────────────────────── */
+.editor-area {
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow:
-    0 48px 96px rgba(0,0,0,0.7),
-    0 0 0 1px rgba(125,207,255,0.06),
-    inset 0 1px 0 rgba(255,255,255,0.04);
+  background: #1E1E2E;
+  border-left: 1px solid rgba(125,207,255,0.08);
 }
 
 /* ── Header épuré 3 colonnes ─────────────────── */
@@ -662,7 +667,7 @@ kbd {
 }
 
 .cm-scroller {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+  font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace !important;
   font-size: 13px !important;
   line-height: 1.75 !important;
   font-variant-ligatures: common-ligatures !important;

@@ -56,39 +56,36 @@ function buildTheme() {
   const violet  = s.getPropertyValue('--violet').trim()   || '#8855EE';
   const magenta = s.getPropertyValue('--magenta').trim()  || '#CC44AA';
 
-  // Palette Tokyo Night — températures équilibrées
   const syn = {
-    keyword:     '#BB9AF7',  // violet pastel — if, def, return
-    fn:          '#7DCFFF',  // cyan clair — fonctions
-    string:      '#9ECE6A',  // vert émeraude doux — strings
-    number:      '#FF9E64',  // orange pastel — nombres
-    comment:     '#565F89',  // gris-bleu discret — commentaires
-    operator:    '#89DDFF',  // cyan pâle — opérateurs
-    tag:         '#F7768E',  // rose — balises HTML
-    attr:        '#FF9E64',  // orange — attributs
-    property:    '#73DACA',  // turquoise — propriétés objet
-    type:        '#2AC3DE',  // bleu-cyan — types
-    builtin:     '#FF9E64',  // orange — builtins
-    punctuation: '#C0CAF5',  // lavande claire — ponctuation
-    variable:    '#C0CAF5',  // lavande claire — variables
-    def:         '#7DCFFF',  // cyan — définitions
+    keyword:     '#BB9AF7',
+    fn:          '#7DCFFF',
+    string:      '#9ECE6A',
+    number:      '#FF9E64',
+    comment:     '#565F89',
+    operator:    '#89DDFF',
+    tag:         '#F7768E',
+    attr:        '#FF9E64',
+    property:    '#73DACA',
+    type:        '#2AC3DE',
+    builtin:     '#FF9E64',
+    punctuation: '#C0CAF5',
+    variable:    '#C0CAF5',
+    def:         '#7DCFFF',
     link:        '#7DCFFF',
   };
 
-  // Fonds VS Code sombre — gris-bleu, jamais noir pur
-  const bgEditor = '#1E1E2E';  // fond éditeur
-  const bgGutter = '#181825';  // gouttière légèrement plus sombre
-  const bgActive = '#2A2A3D';  // ligne active
-  const textMain = '#C0CAF5';  // texte principal — lavande claire
+  const bgEditor = '#1E1E2E';
+  const bgGutter = '#181825';
+  const bgActive = '#2A2A3D';
+  const textMain = '#C0CAF5';
 
   return EditorView.theme({
 
-    // ── Conteneur ────────────────────────────────────────────
     '&': {
       height: '100%',
       backgroundColor: bgEditor,
       color: textMain,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+      fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
       fontSize: '13px',
       fontVariantLigatures: 'common-ligatures',
     },
@@ -99,13 +96,11 @@ function buildTheme() {
       lineHeight: '1.75',
     },
 
-    // ── Curseur ───────────────────────────────────────────────
     '.cm-cursor': {
       borderLeftColor: '#7DCFFF',
       borderLeftWidth: '2px',
     },
 
-    // ── Sélection ─────────────────────────────────────────────
     '.cm-selectionBackground': {
       backgroundColor: 'rgba(187,154,247,0.2) !important',
     },
@@ -116,7 +111,6 @@ function buildTheme() {
       backgroundColor: 'rgba(187,154,247,0.2)',
     },
 
-    // ── Gouttière — effet de profondeur ───────────────────────
     '.cm-gutters': {
       backgroundColor: bgGutter,
       borderRight: '1px solid rgba(255,255,255,0.05)',
@@ -133,7 +127,6 @@ function buildTheme() {
       opacity: '0.6',
     },
 
-    // Numéro ligne active — pleine opacité + accent
     '.cm-activeLineGutter': {
       color: '#7DCFFF',
       fontWeight: '600',
@@ -141,20 +134,17 @@ function buildTheme() {
       opacity: '1',
     },
 
-    // ── Ligne active ──────────────────────────────────────────
     '.cm-activeLine': {
       backgroundColor: bgActive,
       boxShadow: 'inset 2px 0 0 rgba(125,207,255,0.35)',
     },
 
-    // ── Brackets ──────────────────────────────────────────────
     '.cm-matchingBracket': {
       backgroundColor: 'rgba(187,154,247,0.2)',
       outline: '1px solid rgba(187,154,247,0.5)',
       borderRadius: '2px',
     },
 
-    // ── Divers ────────────────────────────────────────────────
     '.cm-scroller': { overflow: 'auto' },
     '.cm-panels':   { backgroundColor: '#16161E', color: textMain },
     '.cm-tooltip':  {
@@ -171,7 +161,6 @@ function buildTheme() {
       backgroundColor: 'rgba(255,158,100,0.5)',
     },
 
-    // ── Tokens syntaxiques — Tokyo Night ─────────────────────
     '.cm-keyword':     { color: syn.keyword,     fontWeight: '500' },
     '.cm-operator':    { color: syn.operator },
     '.cm-variable':    { color: syn.variable },
@@ -224,16 +213,17 @@ async function doSave() {
   if (typeof refreshFiles === 'function') await refreshFiles();
 }
 
-// ── Fermeture ─────────────────────────────────────────────────
+// ── Fermeture — notifie le système d'onglets ──────────────────
 function doClose() {
   if (editorModified) {
     const ok = window.confirm(`"${editorFilename}" a des modifications non sauvegardées.\nFermer quand même ?`);
     if (!ok) return;
   }
-  document.getElementById('editorModal').style.display = 'none';
   editorModified = false;
   if (editorView) { editorView.destroy(); editorView = null; }
-  document.getElementById(`commandInput${editorPaneId}`)?.focus();
+  if (typeof window.LeyoEditor?.onClose === 'function') {
+    window.LeyoEditor.onClose();
+  }
 }
 
 // ── Helpers UI ────────────────────────────────────────────────
@@ -307,35 +297,65 @@ function mountEditor(content, filename) {
   updateLanguageFooter(filename);
 }
 
+// ── Met à jour le header avec le nom du fichier ───────────────
+function setFilenameDisplay(filename) {
+  const short = filename.split(/[/\\]/).pop();
+  const el = document.getElementById('editorFilename');
+  if (el) el.textContent = short;
+}
+
 // ── API globale exposée à main.js ─────────────────────────────
 window.LeyoEditor = {
 
-  async open(paneId, filename) {
+  // Callback déclenché quand l'utilisateur ferme l'éditeur (Ctrl+Q ou bouton ✕)
+  // Défini par main.js pour fermer l'onglet éditeur actif
+  onClose: null,
+
+  // Charge un fichier depuis le disque et monte l'éditeur
+  async loadFile(paneId, filename) {
     editorPaneId   = paneId;
     editorFilename = filename.trim();
     editorModified = false;
 
     const result = await window.go.main.App.ReadFile(editorFilename);
-
-    const elName = document.getElementById('editorFilename');
-    if (elName) elName.textContent = editorFilename;
-
+    setFilenameDisplay(editorFilename);
     setStatus(result.exists === 'true' ? result.path : '✦ Nouveau fichier');
     setModified(false);
-
     mountEditor(result.content || '', editorFilename);
     editorOriginal = result.content || '';
-
-    document.getElementById('editorModal').style.display = 'flex';
     setTimeout(() => editorView?.focus(), 80);
+  },
+
+  // Restaure du contenu déjà en mémoire (après retour sur un onglet éditeur)
+  setContent(paneId, filename, content, wasModified = false) {
+    editorPaneId   = paneId;
+    editorFilename = filename;
+    editorOriginal = wasModified ? '' : content;
+    setFilenameDisplay(filename);
+    setStatus('');
+    mountEditor(content, filename);
+    setModified(wasModified);
+    setTimeout(() => editorView?.focus(), 80);
+  },
+
+  // Retourne le contenu actuel (pour sauvegarder l'état avant un switch d'onglet)
+  getContent() {
+    return editorView ? editorView.state.doc.toString() : null;
+  },
+
+  // Détruit la vue sans déclencher onClose (utilisé lors d'un switch d'onglet)
+  destroyView() {
+    if (editorView) { editorView.destroy(); editorView = null; }
   },
 
   async save()  { await doSave(); },
   close()       { doClose(); },
+
   reloadTheme() {
     if (editorView && editorFilename) {
       mountEditor(editorView.state.doc.toString(), editorFilename);
     }
   },
+
   isModified: () => editorModified,
 };

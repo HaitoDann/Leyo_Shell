@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Leyo Shell</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
   <script src="editor-bundle.js" defer onerror="console.warn('editor-bundle.js non trouvé')"></script>
 </head>
@@ -36,80 +36,14 @@
       </div>
     </div>
 
-    <!-- ── ÉDITEUR CODEMIRROR ── -->
-    <div class="editor-modal" id="editorModal" style="display:none;">
-      <div class="editor-inner">
-
-        <!-- Header épuré en 3 colonnes -->
-        <div class="editor-header">
-
-          <!-- Gauche : icône + statut -->
-          <div class="editor-title-area">
-            <span class="editor-icon">✎</span>
-            <span class="editor-status" id="editorStatus"></span>
-          </div>
-
-          <!-- Centre : nom du fichier -->
-          <span class="editor-filename" id="editorFilename">nouveau fichier</span>
-
-          <!-- Droite : raccourcis + fermer -->
-          <div class="editor-actions">
-            <span class="editor-shortcut"><kbd>Ctrl+S</kbd> Sauvegarder</span>
-            <span class="editor-shortcut"><kbd>Ctrl+Q</kbd> Fermer</span>
-            <button class="editor-close-btn" id="editorCloseBtn" title="Fermer">✕</button>
-          </div>
-
-        </div>
-
-        <!-- Corps : CodeMirror -->
-        <div class="editor-body">
-          <div id="cmEditor" class="cm-editor-container"></div>
-        </div>
-
-        <!-- Footer barre d'état pro -->
-        <div class="editor-footer">
-
-          <div class="editor-footer-section">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="17" y1="10" x2="3" y2="10"/>
-              <line x1="21" y1="6" x2="3" y2="6"/>
-              <line x1="21" y1="14" x2="3" y2="14"/>
-              <line x1="13" y1="18" x2="3" y2="18"/>
-            </svg>
-            <span id="editorCursorPos">Ln 1  Col 1</span>
-          </div>
-
-          <div class="editor-footer-section">
-            <span id="editorLineCount">0 lignes</span>
-          </div>
-
-          <div class="editor-footer-section">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="16 18 22 12 16 6"/>
-              <polyline points="8 6 2 12 8 18"/>
-            </svg>
-            <span id="editorLang">Texte brut</span>
-          </div>
-
-          <div class="editor-footer-section">
-            <span id="editorEncoding">UTF-8</span>
-          </div>
-
-          <div class="editor-footer-section" style="margin-left:auto; border-right:none;">
-            <span id="editorModified" title=""></span>
-          </div>
-
-        </div>
-
-      </div>
-    </div>
-
     <!-- ── MAIN ── -->
     <div class="main">
 
       <!-- ── SIDEBAR ── -->
       <div class="sidebar" id="sidebar">
-        <div class="sidebar-title">Explorer</div>
+        <div class="sidebar-header">
+          <span class="sidebar-title">Explorer</span>
+        </div>
         <div class="sidebar-path" id="sidebarPath"></div>
         <div class="file-list" id="fileList"></div>
 
@@ -239,6 +173,67 @@
         </div>
 
       </div>
+
+      <!-- ── ÉDITEUR CODEMIRROR (zone onglet) ── -->
+      <div class="editor-area" id="editorArea" style="display:none;">
+
+        <div class="editor-header">
+
+          <div class="editor-title-area">
+            <span class="editor-icon">✎</span>
+            <span class="editor-status" id="editorStatus"></span>
+          </div>
+
+          <span class="editor-filename" id="editorFilename">nouveau fichier</span>
+
+          <div class="editor-actions">
+            <span class="editor-shortcut"><kbd>Ctrl+S</kbd> Sauvegarder</span>
+            <span class="editor-shortcut"><kbd>Ctrl+Q</kbd> Fermer</span>
+            <button class="editor-close-btn" id="editorCloseBtn" title="Fermer">✕</button>
+          </div>
+
+        </div>
+
+        <div class="editor-body">
+          <div id="cmEditor" class="cm-editor-container"></div>
+        </div>
+
+        <div class="editor-footer">
+
+          <div class="editor-footer-section">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="17" y1="10" x2="3" y2="10"/>
+              <line x1="21" y1="6" x2="3" y2="6"/>
+              <line x1="21" y1="14" x2="3" y2="14"/>
+              <line x1="13" y1="18" x2="3" y2="18"/>
+            </svg>
+            <span id="editorCursorPos">Ln 1  Col 1</span>
+          </div>
+
+          <div class="editor-footer-section">
+            <span id="editorLineCount">0 lignes</span>
+          </div>
+
+          <div class="editor-footer-section">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 18 22 12 16 6"/>
+              <polyline points="8 6 2 12 8 18"/>
+            </svg>
+            <span id="editorLang">Texte brut</span>
+          </div>
+
+          <div class="editor-footer-section">
+            <span id="editorEncoding">UTF-8</span>
+          </div>
+
+          <div class="editor-footer-section" style="margin-left:auto; border-right:none;">
+            <span id="editorModified" title=""></span>
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
   </div>
   <script src="main.js"></script>
