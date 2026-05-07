@@ -8,8 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
-  <script src="xterm-bundle.js" defer onerror="console.warn('xterm-bundle.js non trouvé')"></script>
-  <script src="editor-bundle.js" defer onerror="console.warn('editor-bundle.js non trouvé')"></script>
 </head>
 <body>
   <div class="app">
@@ -354,6 +352,8 @@
     </div>
 
   </div>
+  <script src="xterm-bundle.js" onerror="console.warn('xterm-bundle.js non trouvé')"></script>
+  <script src="editor-bundle.js" onerror="console.warn('editor-bundle.js non trouvé')"></script>
   <script src="main.js"></script>
 </body>
 </html>
