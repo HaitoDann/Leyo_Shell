@@ -231,6 +231,68 @@ func (a *App) GetGitBranch() string {
 	return branch
 }
 
+// GetGitStatus returns a map of filename → git status code for the cwd.
+// Status codes mirror `git status --porcelain`: "M" modified, "A" added,
+// "D" deleted, "R" renamed, "?" untracked, "!" ignored.
+func (a *App) GetGitStatus() map[string]string {
+	cmd := exec.Command("git", "status", "--porcelain", "--ignored")
+	cmd.Dir, _ = os.Getwd()
+	out, err := cmd.Output()
+	if err != nil {
+		return map[string]string{}
+	}
+	result := map[string]string{}
+	for _, line := range strings.Split(string(out), "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		xy := strings.TrimRight(line[:2], " ")
+		name := strings.TrimSpace(line[3:])
+		// Renamed: "old -> new" — keep the new name
+		if strings.Contains(name, " -> ") {
+			name = strings.SplitN(name, " -> ", 2)[1]
+		}
+		name = strings.Trim(name, "\"")
+		// Use index status first, then worktree
+		code := string(line[0])
+		if code == " " {
+			code = string(line[1])
+		}
+		if code != " " && name != "" {
+			result[name] = code
+			// Also index top-level dir for files inside it
+			if parts := strings.SplitN(name, "/", 2); len(parts) == 2 {
+				if _, exists := result[parts[0]]; !exists {
+					result[parts[0]] = code
+				}
+			}
+		}
+		_ = xy
+	}
+	return result
+}
+
+// ── Sessions persistantes ─────────────────────────────────────
+
+func sessionFile() string {
+	return filepath.Join(os.Getenv("APPDATA"), "Leyo", "session.json")
+}
+
+func (a *App) SaveSession(data string) string {
+	if err := os.WriteFile(sessionFile(), []byte(data), 0644); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func (a *App) LoadSession() string {
+	data, err := os.ReadFile(sessionFile())
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // ── Thèmes ────────────────────────────────────────────────────
 func (a *App) GetThemes() []shell.Theme {
 	return shell.DefaultThemes

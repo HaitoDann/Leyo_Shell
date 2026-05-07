@@ -203,17 +203,113 @@ function hexAlpha(hex, a) {
 
 function loadThemes() {
   const key = localStorage.getItem('leyo-theme') || 'velvet';
+  if (key === 'custom') {
+    const custom = loadCustomTheme();
+    if (custom) { applyTheme(custom); renderThemeGrid(); return; }
+  }
   applyTheme(LEYO_THEMES[key] || LEYO_THEMES.velvet);
   renderThemeGrid();
+}
+
+// ── Thème custom ──────────────────────────────────────────────
+const CUSTOM_THEME_DEFAULTS = {
+  key: 'custom', name: 'Custom',
+  bg: '#0d0d14', bgDeep: '#08080d',
+  panel: 'rgba(255,255,255,0.025)', panelStrong: 'rgba(255,255,255,0.04)',
+  border: 'rgba(255,255,255,0.06)', borderStrong: 'rgba(255,255,255,0.10)',
+  text: '#e8e8f0', textDim: '#8a8a9a', textMuted: '#5a5a6a',
+  c1: '#9ad8ff', c2: '#a6b3ff', c3: '#cba8ff', c4: '#f0a8d8',
+  accent: '#cba8ff', success: '#a8e0c0', error: '#f0a8b8',
+  folder: '#9ad8ff', file: '#c8c8d8', code: '#a6b3ff', exec: '#f0a8d8', md: '#a8e0c0',
+};
+
+function loadCustomTheme() {
+  try {
+    const raw = localStorage.getItem('leyo-custom-theme');
+    return raw ? { ...CUSTOM_THEME_DEFAULTS, ...JSON.parse(raw) } : null;
+  } catch { return null; }
+}
+
+function saveCustomTheme(t) {
+  localStorage.setItem('leyo-custom-theme', JSON.stringify(t));
+}
+
+const CUSTOM_FIELDS = [
+  { id: 'ct-bg',      key: 'bg' },
+  { id: 'ct-bgDeep',  key: 'bgDeep' },
+  { id: 'ct-text',    key: 'text' },
+  { id: 'ct-accent',  key: 'accent' },
+  { id: 'ct-c1',      key: 'c1' },
+  { id: 'ct-c2',      key: 'c2' },
+  { id: 'ct-c3',      key: 'c3' },
+  { id: 'ct-success', key: 'success' },
+  { id: 'ct-error',   key: 'error' },
+];
+
+function initCustomTheme() {
+  const current = loadCustomTheme() || CUSTOM_THEME_DEFAULTS;
+
+  // Populate color pickers
+  CUSTOM_FIELDS.forEach(({ id, key }) => {
+    const inp = document.getElementById(id);
+    const lbl = document.getElementById(id + '-lbl');
+    if (!inp) return;
+    inp.value = current[key] || '#000000';
+    if (lbl) lbl.textContent = current[key] || '';
+    inp.addEventListener('input', () => { if (lbl) lbl.textContent = inp.value; });
+  });
+
+  document.getElementById('ctApplyBtn')?.addEventListener('click', () => {
+    const overrides = {};
+    CUSTOM_FIELDS.forEach(({ id, key }) => {
+      const v = document.getElementById(id)?.value;
+      if (v) overrides[key] = v;
+    });
+    // Derive dependent colors from the picked ones
+    const t = {
+      ...CUSTOM_THEME_DEFAULTS,
+      ...overrides,
+      // keep visual consistency
+      c4: overrides.c3 || CUSTOM_THEME_DEFAULTS.c4,
+      folder: overrides.c1 || CUSTOM_THEME_DEFAULTS.folder,
+      file: overrides.text || CUSTOM_THEME_DEFAULTS.file,
+      code: overrides.c2 || CUSTOM_THEME_DEFAULTS.code,
+      exec: overrides.error || CUSTOM_THEME_DEFAULTS.exec,
+      md: overrides.success || CUSTOM_THEME_DEFAULTS.md,
+      textDim: overrides.text ? overrides.text + 'aa' : CUSTOM_THEME_DEFAULTS.textDim,
+      textMuted: overrides.text ? overrides.text + '66' : CUSTOM_THEME_DEFAULTS.textMuted,
+    };
+    saveCustomTheme(t);
+    applyTheme(t);
+    // Close settings
+    document.getElementById('settingsModal').style.display = 'none';
+  });
+
+  document.getElementById('ctResetBtn')?.addEventListener('click', () => {
+    localStorage.removeItem('leyo-custom-theme');
+    CUSTOM_FIELDS.forEach(({ id, key }) => {
+      const inp = document.getElementById(id);
+      const lbl = document.getElementById(id + '-lbl');
+      if (inp) inp.value = CUSTOM_THEME_DEFAULTS[key];
+      if (lbl) lbl.textContent = CUSTOM_THEME_DEFAULTS[key];
+    });
+  });
 }
 
 function renderThemeGrid() {
   const grid = document.getElementById('themeGrid');
   if (!grid) return;
   grid.innerHTML = '';
-  Object.values(LEYO_THEMES).forEach(t => {
+
+  const allThemes = Object.values(LEYO_THEMES);
+  // Add Custom slot
+  const custom = loadCustomTheme() || CUSTOM_THEME_DEFAULTS;
+  allThemes.push(custom);
+
+  allThemes.forEach(t => {
     const card = document.createElement('div');
-    card.className = 'theme-card' + (t.name === currentThemeName ? ' active' : '');
+    const isCustom = t.key === 'custom';
+    card.className = 'theme-card' + (t.name === currentThemeName ? ' active' : '') + (isCustom ? ' theme-card-custom' : '');
     card.dataset.name = t.name;
     card.innerHTML = `
       <div class="theme-card-preview">
@@ -221,11 +317,9 @@ function renderThemeGrid() {
         <div class="theme-swatch" style="background:${t.c3}"></div>
         <div class="theme-swatch" style="background:${t.c2}"></div>
       </div>
-      <div class="theme-card-name">${t.name}</div>
+      <div class="theme-card-name">${t.name}${isCustom ? ' <span class="theme-edit-hint">⚙ éditer dans Settings</span>' : ''}</div>
     `;
-    card.addEventListener('click', () => {
-      applyTheme(t);
-    });
+    card.addEventListener('click', () => applyTheme(t));
     grid.appendChild(card);
   });
 }
@@ -388,6 +482,7 @@ async function switchTab(id) {
       }
     }
   }
+  saveSession();
 }
 
 function closeTab(e, id) {
@@ -408,6 +503,7 @@ function closeTab(e, id) {
   tabs = tabs.filter(t => t.id !== id);
   if (activeTab?.id === id) switchTab(tabs[tabs.length - 1].id);
   else renderTabs();
+  saveSession();
 }
 
 // Fermeture de l'onglet éditeur actif sans re-confirmer (Ctrl+Q a déjà confirmé)
@@ -1214,18 +1310,59 @@ function initSidebarSearch() {
   });
 }
 
+// ── Sessions persistantes ─────────────────────────────────────
+async function saveSession() {
+  const sessionTabs = tabs
+    .filter(t => t.type === 'shell')
+    .map(t => ({ label: t.label, path: t.path }));
+  const activeIdx = sessionTabs.findIndex(
+    t => t.path === (activeTab?.type === 'shell' ? activeTab.path : null)
+  );
+  const data = JSON.stringify({ tabs: sessionTabs, activeIdx: Math.max(activeIdx, 0) });
+  await window.go.main.App.SaveSession(data).catch(() => {});
+}
+
+async function restoreSession() {
+  try {
+    const raw = await window.go.main.App.LoadSession();
+    if (!raw) return false;
+    const { tabs: savedTabs, activeIdx } = JSON.parse(raw);
+    if (!savedTabs?.length) return false;
+
+    for (const saved of savedTabs) {
+      const id = ++tabCounter;
+      const tab = { id, label: saved.label || `Shell ${id}`, type: 'shell', output: '', path: saved.path || 'C:\\' };
+      tabs.push(tab);
+    }
+    renderTabs();
+    const targetId = tabs[Math.min(activeIdx || 0, tabs.length - 1)]?.id ?? tabs[0].id;
+    await switchTab(targetId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function init() {
   history = await window.go.main.App.GetHistory() || [];
   paneState[1].historyIndex = history.length;
   paneState[2].historyIndex = history.length;
   loadThemes();
   initSettings();
+  initCustomTheme();
   initCtxMenu();
   initCmdPalette();
   initSidebarResize();
   initSidebarSearch();
-  createTab();
+
+  const restored = await restoreSession();
+  if (!restored) createTab();
+
   document.getElementById('commandInput1').focus();
+
+  // Sauvegarde la session à la fermeture de la fenêtre
+  window.addEventListener('beforeunload', saveSession);
+  // Sauvegarde aussi à chaque changement d'onglet (après switchTab)
 }
 
 // ── Output ────────────────────────────────────────────────────
@@ -1348,10 +1485,25 @@ function makeFileIcon(cls, shape, opacity) {
   return el;
 }
 
+function gitBadgeTitle(code) {
+  return { 'M':'Modifié','A':'Ajouté','D':'Supprimé','R':'Renommé',
+           'U':'Conflit','?':'Non suivi','!':'Ignoré' }[code] || code;
+}
+
+// Maps git porcelain status codes to CSS class names
+const GIT_STATUS_CLASS = {
+  'M': 'git-modified', 'A': 'git-added',   'D': 'git-deleted',
+  'R': 'git-renamed',  'C': 'git-added',   'U': 'git-conflict',
+  '?': 'git-untracked','!': 'git-ignored',
+};
+
 async function refreshFiles() {
-  const files = await window.go.main.App.ListFiles() || [];
-  const list  = document.getElementById('fileList');
-  const path  = await window.go.main.App.GetCurrentPath();
+  const [files, gitStatus] = await Promise.all([
+    window.go.main.App.ListFiles(),
+    window.go.main.App.GetGitStatus().catch(() => ({})),
+  ]);
+  const list = document.getElementById('fileList');
+  const path = await window.go.main.App.GetCurrentPath();
 
   document.getElementById('sidebarPath').textContent =
     path.length > 28 ? '...' + path.slice(-25) : path;
@@ -1379,7 +1531,7 @@ async function refreshFiles() {
     list.appendChild(parentItem);
   }
 
-  files.forEach(f => {
+  (files || []).forEach(f => {
     const item = document.createElement('div');
     item.className    = 'file-item';
     item.dataset.name = f.Name;
@@ -1390,6 +1542,21 @@ async function refreshFiles() {
     const nameEl = document.createElement('span');
     nameEl.className   = `fname ${cls}`;
     nameEl.textContent = f.Name;
+
+    // Git status badge
+    const statusCode = gitStatus[f.Name] || gitStatus[f.Name + '/'];
+    if (statusCode) {
+      const gitCls = GIT_STATUS_CLASS[statusCode] || '';
+      if (gitCls) {
+        item.classList.add(gitCls);
+        const badge = document.createElement('span');
+        badge.className   = 'git-badge';
+        badge.textContent = statusCode === '?' ? 'U' : statusCode;
+        badge.title       = gitBadgeTitle(statusCode);
+        item.appendChild(badge);
+      }
+    }
+
     item.appendChild(nameEl);
 
     item.draggable = true;
@@ -1414,7 +1581,7 @@ async function refreshFiles() {
     list.appendChild(item);
   });
 
-  updateStatusCount(files.length);
+  updateStatusCount((files || []).length);
 
   if (currentPreviewFile) {
     const active = list.querySelector(`[data-name="${currentPreviewFile}"]`);
