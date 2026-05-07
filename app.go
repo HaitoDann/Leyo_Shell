@@ -32,34 +32,46 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) RunCommand(input string) map[string]string {
+	return a.RunCommandAt("", input)
+}
+
+// RunCommandAt runs a command in a specific directory, returns output + new path.
+// Used by the frontend to give each tab its own independent working directory.
+func (a *App) RunCommandAt(dir, input string) map[string]string {
+	if dir != "" {
+		if err := os.Chdir(dir); err != nil {
+			return map[string]string{"output": "", "error": "Impossible d'accéder à : " + dir, "suggestion": "", "path": dir}
+		}
+	}
+
 	trimmed := strings.TrimSpace(input)
 
 	if trimmed == "cd" {
 		current, _ := os.Getwd()
 		root := filepath.VolumeName(current) + `\`
 		if err := os.Chdir(root); err != nil {
-			return map[string]string{"output": "", "error": err.Error(), "suggestion": ""}
+			newPath, _ := os.Getwd()
+			return map[string]string{"output": "", "error": err.Error(), "suggestion": "", "path": newPath}
 		}
 		newPath, _ := os.Getwd()
-		return map[string]string{"output": "→ " + newPath, "error": "", "suggestion": ""}
+		return map[string]string{"output": "→ " + newPath, "error": "", "suggestion": "", "path": newPath}
 	}
 
 	if strings.HasPrefix(trimmed, "cd ") {
-		dir := strings.TrimPrefix(trimmed, "cd ")
-		dir = strings.Trim(dir, "\"")
-		dir = strings.TrimSpace(dir)
-		if !filepath.IsAbs(dir) {
+		d := strings.TrimPrefix(trimmed, "cd ")
+		d = strings.Trim(d, "\"")
+		d = strings.TrimSpace(d)
+		if !filepath.IsAbs(d) {
 			current, _ := os.Getwd()
-			dir = filepath.Join(current, dir)
+			d = filepath.Join(current, d)
 		}
-		dir = filepath.Clean(dir)
-		if err := os.Chdir(dir); err != nil {
-			return map[string]string{
-				"output": "", "error": "Impossible d'accéder à : " + dir, "suggestion": "",
-			}
+		d = filepath.Clean(d)
+		if err := os.Chdir(d); err != nil {
+			cur, _ := os.Getwd()
+			return map[string]string{"output": "", "error": "Impossible d'accéder à : " + d, "suggestion": "", "path": cur}
 		}
 		newPath, _ := os.Getwd()
-		return map[string]string{"output": "→ " + newPath, "error": "", "suggestion": ""}
+		return map[string]string{"output": "→ " + newPath, "error": "", "suggestion": "", "path": newPath}
 	}
 
 	result, errMsg := shell.RunWithOutput(input)
@@ -82,8 +94,9 @@ func (a *App) RunCommand(input string) map[string]string {
 		}
 	}
 
+	newPath, _ := os.Getwd()
 	return map[string]string{
-		"output": result, "error": errMsg, "suggestion": suggestion,
+		"output": result, "error": errMsg, "suggestion": suggestion, "path": newPath,
 	}
 }
 

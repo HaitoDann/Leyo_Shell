@@ -17,7 +17,7 @@
       <div class="titlebar-left">
         <img src="assets/logo.png" height="18" width="18" style="object-fit:contain;opacity:0.9;flex-shrink:0;"/>
         <span class="titlebar-name">Leyo Shell</span>
-        <span class="titlebar-version">v1.10</span>
+        <span class="titlebar-version">v1.12</span>
       </div>
       <div class="titlebar-center">
         <span class="titlebar-path" id="titlebarPath">C:\</span>
@@ -319,6 +319,18 @@
 
     </div>
 
+    <!-- ── COMMAND PALETTE ── -->
+    <div class="cmd-palette" id="cmdPalette" style="display:none;">
+      <div class="cmd-palette-backdrop" id="cmdPaletteBackdrop"></div>
+      <div class="cmd-palette-box">
+        <div class="cmd-palette-input-wrap">
+          <span class="cmd-palette-icon">❯</span>
+          <input type="text" class="cmd-palette-input" id="cmdPaletteInput" placeholder="Commande ou historique…" autocomplete="off" spellcheck="false"/>
+        </div>
+        <div class="cmd-palette-list" id="cmdPaletteList"></div>
+      </div>
+    </div>
+
     <!-- ── MENU CONTEXTUEL FICHIERS ── -->
     <div class="ctx-menu" id="ctxMenu" style="display:none;">
       <div class="ctx-item" id="ctxOpen">Ouvrir</div>
@@ -347,7 +359,7 @@
         <span>UTF-8</span>
         <span id="statusTheme">Velvet Night</span>
         <span id="statusCount">0 items</span>
-        <span style="color:var(--text-dim)">VinX · v1.10</span>
+        <span style="color:var(--text-dim)">VinX · v1.12</span>
       </div>
     </div>
 

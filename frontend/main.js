@@ -92,8 +92,8 @@ let splitActive = false;
 let activePaneId = 1;
 
 const paneState = {
-  1: { historyIndex: 0, ghostSuggestion: '' },
-  2: { historyIndex: 0, ghostSuggestion: '' }
+  1: { historyIndex: 0, ghostSuggestion: '', tabCompletions: [], tabCompletionIdx: 0 },
+  2: { historyIndex: 0, ghostSuggestion: '', tabCompletions: [], tabCompletionIdx: 0 }
 };
 
 // ── Thèmes ────────────────────────────────────────────────────
@@ -307,7 +307,9 @@ let tabCounter = 0;
 
 function createTab() {
   const id = ++tabCounter;
-  const tab = { id, label: `Shell ${id}`, type: 'shell', output: '', path: 'C:\\' };
+  // Each new shell tab inherits the current tab's path so it starts in the same dir
+  const inheritPath = activeTab?.type === 'shell' ? activeTab.path : 'C:\\';
+  const tab = { id, label: `Shell ${id}`, type: 'shell', output: '', path: inheritPath };
   tabs.push(tab);
   renderTabs();
   switchTab(id);
@@ -363,7 +365,8 @@ async function switchTab(id) {
     updateStatusPath(activeTab.path);
     document.getElementById('commandInput1').value        = '';
     await updateGhost(1, '');
-    await window.go.main.App.RunCommand(`cd "${activeTab.path}"`);
+    // Sync Go process working dir to this tab's path (isolated per-tab)
+    await window.go.main.App.RunCommandAt(activeTab.path, '');
     await refreshFiles();
     await updateGitBranch(1);
     document.getElementById('commandInput1').focus();
@@ -853,6 +856,37 @@ const knownCommands = [
   'history','exit','alias','unalias','theme','nano','edit'
 ];
 
+// Returns all completion candidates for the last token of `input`
+async function getCompletions(input) {
+  if (!input) return [];
+  const spaceIdx = input.lastIndexOf(' ');
+  const cmdPrefix = spaceIdx >= 0 ? input.slice(0, spaceIdx + 1) : '';
+  const partial   = spaceIdx >= 0 ? input.slice(spaceIdx + 1)    : input;
+
+  // For the first token with no space, also suggest known commands
+  if (spaceIdx < 0) {
+    const lower = partial.toLowerCase();
+    const cmdMatches = knownCommands
+      .filter(c => c.toLowerCase().startsWith(lower) && c.toLowerCase() !== lower)
+      .map(c => c);
+    if (cmdMatches.length) return cmdMatches;
+  }
+
+  // File/dir completion for last token
+  const lastSep = Math.max(partial.lastIndexOf('\\'), partial.lastIndexOf('/'));
+  let dirPart = '', filePart = partial;
+  if (lastSep >= 0) { dirPart = partial.slice(0, lastSep + 1); filePart = partial.slice(lastSep + 1); }
+
+  const isCd = /^cd\s/i.test(input);
+  const files = await window.go.main.App.ListFilesAt(dirPart || '.');
+  const candidates = files
+    .filter(f => isCd ? f.IsDir : true)
+    .filter(f => f.Name.toLowerCase().startsWith(filePart.toLowerCase()) && f.Name.toLowerCase() !== filePart.toLowerCase())
+    .map(f => cmdPrefix + dirPart + f.Name + (f.IsDir ? '\\' : ''));
+
+  return candidates;
+}
+
 async function completePathSuggestion(input) {
   if (!input) return '';
   const m = input.match(/^(cd\s+)(.*)$/i);
@@ -860,10 +894,7 @@ async function completePathSuggestion(input) {
   const prefix = m[1], partial = m[2];
   const lastSep = Math.max(partial.lastIndexOf('\\'), partial.lastIndexOf('/'));
   let dirPrefix = '', toComplete = partial;
-  if (lastSep !== -1) {
-    dirPrefix  = partial.slice(0, lastSep + 1);
-    toComplete = partial.slice(lastSep + 1);
-  }
+  if (lastSep !== -1) { dirPrefix = partial.slice(0, lastSep + 1); toComplete = partial.slice(lastSep + 1); }
   if (!toComplete) return '';
   const files = await window.go.main.App.ListFilesAt(dirPrefix || '.');
   const match = files.filter(f => f.IsDir).find(d =>
@@ -1071,6 +1102,101 @@ function initCtxMenu() {
   });
 }
 
+// ── Command palette ───────────────────────────────────────────
+let cmdPaletteSelectedIdx = 0;
+let cmdPaletteItems       = [];
+
+function openCmdPalette() {
+  document.getElementById('cmdPalette').style.display = 'flex';
+  const inp = document.getElementById('cmdPaletteInput');
+  inp.value = '';
+  renderCmdPalette('');
+  inp.focus();
+}
+
+function closeCmdPalette() {
+  document.getElementById('cmdPalette').style.display = 'none';
+}
+
+function renderCmdPalette(query) {
+  const q     = query.toLowerCase();
+  const hist  = [...history].reverse();
+  const seen  = new Set();
+
+  // Build ordered list: history matches first, then known commands
+  cmdPaletteItems = [];
+  for (const cmd of hist) {
+    if (seen.has(cmd)) continue;
+    seen.add(cmd);
+    if (!q || cmd.toLowerCase().includes(q)) cmdPaletteItems.push({ text: cmd, badge: 'hist' });
+  }
+  for (const cmd of knownCommands) {
+    if (seen.has(cmd)) continue;
+    seen.add(cmd);
+    if (!q || cmd.toLowerCase().includes(q)) cmdPaletteItems.push({ text: cmd, badge: 'cmd' });
+  }
+  cmdPaletteItems = cmdPaletteItems.slice(0, 50);
+  cmdPaletteSelectedIdx = 0;
+
+  const list = document.getElementById('cmdPaletteList');
+  list.innerHTML = '';
+  cmdPaletteItems.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'cmd-palette-item' + (i === 0 ? ' selected' : '');
+    div.innerHTML = `<span class="cp-badge">${item.badge}</span><span class="cp-text">${item.text}</span>`;
+    div.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      acceptCmdPaletteItem(item.text);
+    });
+    div.addEventListener('mouseover', () => {
+      cmdPaletteSelectedIdx = i;
+      highlightCmdPalette();
+    });
+    list.appendChild(div);
+  });
+}
+
+function highlightCmdPalette() {
+  document.querySelectorAll('.cmd-palette-item').forEach((el, i) => {
+    el.classList.toggle('selected', i === cmdPaletteSelectedIdx);
+    if (i === cmdPaletteSelectedIdx) el.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function acceptCmdPaletteItem(text) {
+  closeCmdPalette();
+  const inp = document.getElementById(`commandInput${activePaneId}`);
+  inp.value = text;
+  inp.focus();
+  updateGhost(activePaneId, text);
+}
+
+function initCmdPalette() {
+  document.getElementById('cmdPaletteBackdrop').addEventListener('click', closeCmdPalette);
+
+  const inp = document.getElementById('cmdPaletteInput');
+  inp.addEventListener('input', () => renderCmdPalette(inp.value));
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeCmdPalette(); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      cmdPaletteSelectedIdx = Math.min(cmdPaletteSelectedIdx + 1, cmdPaletteItems.length - 1);
+      highlightCmdPalette(); return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      cmdPaletteSelectedIdx = Math.max(cmdPaletteSelectedIdx - 1, 0);
+      highlightCmdPalette(); return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const item = cmdPaletteItems[cmdPaletteSelectedIdx];
+      if (item) acceptCmdPaletteItem(item.text);
+      return;
+    }
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────
 function initSidebarSearch() {
   const input = document.getElementById('sidebarSearch');
@@ -1095,6 +1221,7 @@ async function init() {
   loadThemes();
   initSettings();
   initCtxMenu();
+  initCmdPalette();
   initSidebarResize();
   initSidebarSearch();
   createTab();
@@ -1297,29 +1424,69 @@ async function refreshFiles() {
 }
 
 // ── Drag & drop ───────────────────────────────────────────────
+function insertIntoPrompt(paneId, text) {
+  const input = document.getElementById(`commandInput${paneId}`);
+  const pos   = input.selectionStart;
+  const quoted = text.includes(' ') ? `"${text}"` : text;
+  input.value = input.value.slice(0, pos) + quoted + input.value.slice(input.selectionEnd);
+  input.selectionStart = input.selectionEnd = pos + quoted.length;
+  updateGhost(paneId, input.value);
+  input.focus();
+  setActivePane(paneId);
+}
+
 function initDragDrop() {
   [1, 2].forEach(id => {
-    const bar = document.getElementById(`promptBar${id}`);
-    bar.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-      bar.classList.add('drop-active');
+    const pane = document.getElementById(`pane${id}`);
+    const bar  = document.getElementById(`promptBar${id}`);
+
+    // Accept OS file drops on the whole pane
+    pane.addEventListener('dragover', (e) => {
+      if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('text/plain')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        bar.classList.add('drop-active');
+      }
     });
-    bar.addEventListener('dragleave', (e) => {
-      if (!bar.contains(e.relatedTarget)) bar.classList.remove('drop-active');
+    pane.addEventListener('dragleave', (e) => {
+      if (!pane.contains(e.relatedTarget)) bar.classList.remove('drop-active');
     });
-    bar.addEventListener('drop', (e) => {
+    pane.addEventListener('drop', (e) => {
       e.preventDefault();
       bar.classList.remove('drop-active');
+
+      // OS file drop (Windows Explorer → WebView2 exposes file.path)
+      if (e.dataTransfer.files?.length) {
+        const file = e.dataTransfer.files[0];
+        const filePath = file.path || file.name;
+        if (filePath) { insertIntoPrompt(id, filePath); return; }
+      }
+
+      // Multiple OS files
+      if (e.dataTransfer.items) {
+        const paths = [];
+        for (const item of e.dataTransfer.items) {
+          if (item.kind === 'file') {
+            const f = item.getAsFile();
+            if (f?.path) paths.push(f.path.includes(' ') ? `"${f.path}"` : f.path);
+          }
+        }
+        if (paths.length) {
+          const input = document.getElementById(`commandInput${id}`);
+          const pos   = input.selectionStart;
+          const text  = paths.join(' ');
+          input.value = input.value.slice(0, pos) + text + input.value.slice(input.selectionEnd);
+          input.selectionStart = input.selectionEnd = pos + text.length;
+          updateGhost(id, input.value);
+          input.focus();
+          setActivePane(id);
+          return;
+        }
+      }
+
+      // Sidebar drag (text/plain = filename)
       const name = e.dataTransfer.getData('text/plain');
-      if (!name) return;
-      const input = document.getElementById(`commandInput${id}`);
-      const pos   = input.selectionStart;
-      input.value = input.value.slice(0, pos) + name + input.value.slice(input.selectionEnd);
-      input.selectionStart = input.selectionEnd = pos + name.length;
-      updateGhost(id, input.value);
-      input.focus();
-      setActivePane(id);
+      if (name) insertIntoPrompt(id, name);
     });
   });
 }
@@ -1392,7 +1559,9 @@ async function runCommand(paneId, input) {
       '  │   Ctrl+W          Fermer l\'onglet courant',
       '  │   Ctrl+Tab        Onglet suivant',
       '  │   Ctrl+D          Activer / désactiver le split',
+      '  │   Ctrl+P          Command palette (historique + commandes)',
       '  │   Ctrl+K          Sélecteur de thèmes',
+      '  │   Ctrl+L          Effacer l\'output',
       '  │   Ctrl+F          Rechercher dans l\'output',
       '  │   Ctrl+S          Sauvegarder (éditeur)',
       '  │   Ctrl+Q          Fermer l\'éditeur',
@@ -1453,15 +1622,20 @@ async function runCommand(paneId, input) {
   paneState[1].historyIndex = history.length;
   paneState[2].historyIndex = history.length;
 
-  const result   = await window.go.main.App.RunCommand(input);
+  // RunCommandAt: cd to this tab's isolated path first, then run
+  const tabPath = activeTab?.type === 'shell' ? activeTab.path : '';
+  const result  = await window.go.main.App.RunCommandAt(tabPath, input);
   const hasError = !!result.error;
   if (result.error)      addLine(paneId, '❌ ' + result.error, 'out-error');
   if (result.suggestion) addSuggestion(paneId, result.suggestion, input);
   if (result.output)     addAnsiBlock(paneId, result.output);
 
-  updateStatus(paneId, !hasError);
-  const newPath = await window.go.main.App.GetCurrentPath();
+  // Persist the new path back into the tab's isolated state
+  if (result.path && activeTab?.type === 'shell') activeTab.path = result.path;
+  const newPath = result.path || await window.go.main.App.GetCurrentPath();
   document.getElementById(`segPath${paneId}`).textContent = newPath;
+  updateStatusPath(newPath);
+  updateStatus(paneId, !hasError);
   if (paneId === 1) await refreshFiles();
   await updateGitBranch(paneId);
 }
@@ -1492,12 +1666,17 @@ async function acceptSuggestion(paneId, suggestion, originalInput) {
 function setupPane(paneId) {
   const input = document.getElementById(`commandInput${paneId}`);
 
-  input.addEventListener('input', async (e) => await updateGhost(paneId, e.target.value));
+  input.addEventListener('input', async (e) => {
+    paneState[paneId].tabCompletions = [];
+    await updateGhost(paneId, e.target.value);
+  });
 
   input.addEventListener('keydown', async (e) => {
     if (e.ctrlKey && e.key === 'k') { e.preventDefault(); document.getElementById('themeModal').style.display = 'flex'; return; }
     if (e.ctrlKey && e.key === 'f') { e.preventDefault(); openSearch(paneId); return; }
     if (e.ctrlKey && e.key === 'd') { e.preventDefault(); toggleSplit(); return; }
+    if (e.ctrlKey && e.key === 'p') { e.preventDefault(); openCmdPalette(); return; }
+    if (e.ctrlKey && e.key === 'l') { e.preventDefault(); document.getElementById(`output${paneId}`).innerHTML = ''; return; }
 
     if (e.ctrlKey && e.key === 'c') {
       const sel = window.getSelection().toString();
@@ -1521,12 +1700,55 @@ function setupPane(paneId) {
     }
 
     const ghost = paneState[paneId].ghostSuggestion;
-    if ((e.key === 'ArrowRight' || e.key === 'Tab') && ghost && input.selectionStart === input.value.length) {
+    if (e.key === 'ArrowRight' && ghost && input.selectionStart === input.value.length) {
       e.preventDefault(); input.value = ghost; await updateGhost(paneId, ''); return;
     }
 
+    // Tab: cycle through file/dir completions
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const state = paneState[paneId];
+      if (state.tabCompletions.length === 0) {
+        state.tabCompletions = await getCompletions(input.value);
+        state.tabCompletionIdx = 0;
+      }
+      if (state.tabCompletions.length === 1) {
+        input.value = state.tabCompletions[0];
+        state.tabCompletions = [];
+      } else if (state.tabCompletions.length > 1) {
+        input.value = state.tabCompletions[state.tabCompletionIdx % state.tabCompletions.length];
+        state.tabCompletionIdx++;
+      }
+      await updateGhost(paneId, input.value);
+      return;
+    }
+
     if (e.key === 'Escape') {
-      document.getElementById('themeModal').style.display = 'none'; return;
+      paneState[paneId].tabCompletions = [];
+      document.getElementById('themeModal').style.display = 'none';
+      closeCmdPalette();
+      return;
+    }
+
+    // Scrollback clavier
+    if (e.key === 'PageUp') {
+      e.preventDefault();
+      const out = document.getElementById(`output${paneId}`);
+      out.scrollBy({ top: -out.clientHeight * 0.8, behavior: 'smooth' }); return;
+    }
+    if (e.key === 'PageDown') {
+      e.preventDefault();
+      const out = document.getElementById(`output${paneId}`);
+      out.scrollBy({ top: out.clientHeight * 0.8, behavior: 'smooth' }); return;
+    }
+    if (e.ctrlKey && e.key === 'Home') {
+      e.preventDefault();
+      document.getElementById(`output${paneId}`).scrollTo({ top: 0, behavior: 'smooth' }); return;
+    }
+    if (e.ctrlKey && e.key === 'End') {
+      e.preventDefault();
+      const out = document.getElementById(`output${paneId}`);
+      out.scrollTo({ top: out.scrollHeight, behavior: 'smooth' }); return;
     }
 
     if (e.key === 'Enter') {
@@ -1560,8 +1782,8 @@ function setupPane(paneId) {
 
 // ── Bienvenue ─────────────────────────────────────────────────
 async function showWelcome() {
-  addLine(1, 'Leyo Shell  1.10', 'out-welcome');
-  addLine(1, 'Ctrl+K thèmes  ·  Ctrl+D split  ·  Ctrl+F recherche  ·  nano fichier', 'out-muted');
+  addLine(1, 'Leyo Shell  v1.12', 'out-welcome');
+  addLine(1, 'Ctrl+P palette  ·  Ctrl+K thèmes  ·  Ctrl+D split  ·  Ctrl+F recherche  ·  Tab complétion', 'out-muted');
   addLine(1, '', 'out-normal');
 
   const path = await window.go.main.App.GetCurrentPath();
