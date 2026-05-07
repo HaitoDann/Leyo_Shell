@@ -1329,9 +1329,15 @@ async function restoreSession() {
     const { tabs: savedTabs, activeIdx } = JSON.parse(raw);
     if (!savedTabs?.length) return false;
 
+    const fallbackPath = await window.go.main.App.GetCurrentPath();
+
     for (const saved of savedTabs) {
-      const id = ++tabCounter;
-      const tab = { id, label: saved.label || `Shell ${id}`, type: 'shell', output: '', path: saved.path || 'C:\\' };
+      const id  = ++tabCounter;
+      // Validate path; fall back to cwd if it no longer exists
+      let path  = saved.path || fallbackPath;
+      const ok  = await window.go.main.App.PathExists(path).catch(() => false);
+      if (!ok) path = fallbackPath;
+      const tab = { id, label: saved.label || `Shell ${id}`, type: 'shell', output: '', path };
       tabs.push(tab);
     }
     renderTabs();

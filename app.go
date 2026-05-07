@@ -120,6 +120,11 @@ func (a *App) GetCurrentPath() string {
 	return dir
 }
 
+func (a *App) PathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func (a *App) ListFiles() []FileEntry {
 	dir, err := os.Getwd()
 	if err != nil {
